@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+import numpy as np
 import os
 
 
@@ -76,13 +78,49 @@ class NamingClass:
         return f"PathingFiles({self.path})"
 
 
+def interp_2d(arr):
+    tm = arr[:, 0]
+    vals = arr[:, 1:]
+    # print("ARR:")
+    # print(arr)
+    # print()
+    # print(tm)
+    # print(vals)
+    tm_uniform = np.arange(tm[0], tm[-1] + 0.1, 0.1)
+    # tm_uniform = np.concatenate()
+
+    # out_arr = np.empty(shape=(0,))
+    out_arr = tm_uniform.reshape(-1, 1)
+    # print("Empty shape:")
+    # print(out_arr.shape)
+
+    for col in vals.T:
+        # print("Column", col)
+        # print(col.shape, tm.shape)
+        vals_uni = np.interp(tm_uniform, tm, col).reshape(-1, 1)
+        out_arr = np.concatenate([out_arr, vals_uni], axis=1)
+
+    # print(out_arr)
+    # print(vals_uni)
+    x1, y1 = (arr[:, [0, 1]].T)
+    x2, y2 = (out_arr[:, [0, 1]].T)
+    plt.plot(x1, y1)
+    plt.plot(x2, y2, dashes=[2, 1])
+    plt.show()
+
+
+def interp_1d_sub(tm_uni, tm, vals):
+    vals_uni = np.interp(tm_uni, tm, vals)
+    return vals_uni
+
+
 if __name__ == "__main__":
-    nm = NamingClass("pierwszy", "lstm", "1", "10","500", "1000", "3", "0.5")
-    print(nm)
-    print(nm.path)
-
-    name2 = NamingClass.read_from_path(nm.path)
-    print(name2)
-    print(name2.path)
-
-    print(nm.path == name2.path)
+    arr = np.array([
+            [0, 0, 0, 0],
+            [0.3, 0.3, 0.3, 0.3],
+            [1, 10, 20, 30],
+            [3, 30, 60, 90],
+            [7, 70, 140, 210],
+    ]
+    )
+    interp_2d(arr)
