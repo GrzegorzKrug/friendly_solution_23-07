@@ -257,15 +257,27 @@ def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
     x = []
     y = []
     offset_arr = np.array(fwd_intervals) - 1
-    last_minus = max(fwd_intervals)-1
-    for i in range(len(array)  - seq_size - last_minus):
+    last_minus = max(fwd_intervals) - 1
+    for i in range(len(array) - seq_size - last_minus):
         window = array[i:(i + seq_size), :]
         x.append(window)
         sub_arr = array[i + seq_size + offset_arr, :]
         y.append(sub_arr)
-    # print("Returning:")
-    # print(x)
-    # print(y)
+    return np.array(x), np.array(y)
+
+
+def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_amount=0):
+    x = []
+    y = []
+    offset_arr = np.array(fwd_intervals) - 1
+    last_minus = max(fwd_intervals) - 1
+    columns = array.shape[1]
+    lstm_cols = columns - ft_amount
+    for i in range(len(array) - seq_size - last_minus):
+        window = array[i:(i + seq_size), :]
+        x.append(window)
+        sub_arr = array[i + seq_size + offset_arr, :lstm_cols]
+        y.append(sub_arr)
     return np.array(x), np.array(y)
 
 

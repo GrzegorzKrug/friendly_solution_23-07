@@ -72,7 +72,7 @@ def arch_1(tser_size, tser_outsize, ft_size=0):
 
 @ArchRegister.register(2)
 @compile_decorator
-def arch_2(tser_size=5, tser_outsize=1, ft_size=1, nodes=100):
+def arch_2(tser_size=5, tser_outsize=1, tser_features=1, ft_size=1, nodes=100):
     # model = Sequential()
     # model = Model(inputs=Input(shape=(20, 1)), outputs=(5,))
     # model = model(Input(shape=(20, 1)))
@@ -83,7 +83,7 @@ def arch_2(tser_size=5, tser_outsize=1, ft_size=1, nodes=100):
     # print(f"Lays0: {layes[0].shape}")
     # print(f"Lays1: {layes[1].shape}")
 
-    ls_inp = tf.reshape(layes[0], (-1, tser_size, 1))
+    ls_inp = tf.reshape(layes[0], (-1, tser_size, tser_features))
     # print("Reshape:", ls_inp.shape)
     ls1 = LSTM(nodes)(ls_inp)
     ls1 = Flatten()(ls1)

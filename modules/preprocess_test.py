@@ -133,3 +133,93 @@ def test4_sequences():
     assert y[0, 0, 1] == arr[3, 1]
     assert y[1, 0, 1] == arr[4, 1]
     assert y[2, 0, 1] == arr[5, 1]
+
+
+arr_list = [
+        (np.random.random((20, 5)), 1, 1),
+        (np.random.random((20, 5)), 1, 2),
+        (np.random.random((20, 5)), 1, 3),
+        (np.random.random((20, 5)), 1, 5),
+
+        (np.random.random((20, 5)), 2, 5),
+        (np.random.random((20, 5)), 4, 5),
+        (np.random.random((20, 5)), 10, 5),
+]
+
+
+@pytest.mark.parametrize("arr,ft_num,seq_size", arr_list)
+def test5_sequences(arr, ft_num, seq_size):
+    fwd_intervals = [1]
+    predict_tser_size = len(fwd_intervals)
+    # seq_size = 3
+    # ft_num = 2
+    # in_size = 50
+
+    # arr = np.arange(50).reshape(-1, ft_num)
+    arr = arr.reshape(-1, ft_num)
+    h, w = arr.shape
+    # print("\nInput:")
+    # print(arr)
+    x, y = to_sequences_forward(arr, seq_size, fwd_intervals=fwd_intervals)
+
+    print(f"Ft num: {ft_num}, seq: {seq_size}")
+    print(x.shape, y.shape)
+
+    "Shape 0"
+    assert len(x) == (h + -seq_size), "Wronge size"
+    assert len(y) == (h + -seq_size), "Wronge size"
+
+    "Shape 1"
+    assert x.shape[1] == seq_size, "Wronge size"
+    assert y.shape[1] == predict_tser_size, "Wronge size"
+
+    "Shape 2"
+    assert x.shape[2] == ft_num, "Wronge size"
+    assert y.shape[2] == ft_num, "Wronge size"
+
+
+arr_list2 = [
+        (np.random.random((10, 2)), 1, 1),
+        (np.random.random((10, 2)), 1, 2),
+        (np.random.random((10, 2)), 2, 1),
+        (np.random.random((10, 2)), 2, 2),
+]
+
+
+@pytest.mark.parametrize("arr,ft_num,seq_size", arr_list2)
+def test6_sequences(arr, ft_num, seq_size):
+    """Checking values"""
+    fwd_intervals = [1]
+    arr = arr.reshape(-1, ft_num)
+
+    x, y = to_sequences_forward(arr, seq_size, fwd_intervals=fwd_intervals)
+
+    print(f"Ft num: {ft_num}, seq: {seq_size}")
+    print(arr)
+    print(arr.shape)
+    print(x.shape, y.shape)
+
+    print("===========")
+    # print(x)
+    print("===========")
+    # print(y)
+
+    B, T, F = x.shape
+    "Smaller then X due rest values are in Y"
+    for b in range(B):
+        for t in range(T):
+            for f in range(F):
+                cur_x = x[b, t, f]
+                # print(f"CheckingX: {b + t, f}, b{b}, t{t}, f{f}, {cur_x}")
+                check_x = arr[b + t, f]
+                assert cur_x == check_x, "Values X missmatch"
+
+    B, T, F = y.shape
+    "Smaller then X due rest values are in Y"
+    for b in range(B):
+        for t in range(T):
+            for f in range(F):
+                cur_y = y[b, t, f]
+                # print(f"CheckingY: {b + t, f}, b{b}, t{t}, f{f}, {cur_y}")
+                check_y = arr[b + t + seq_size, f]
+                assert cur_y == check_y, "Values Y missmatch"
