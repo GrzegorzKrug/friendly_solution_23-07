@@ -223,3 +223,47 @@ def test6_sequences(arr, ft_num, seq_size):
                 # print(f"CheckingY: {b + t, f}, b{b}, t{t}, f{f}, {cur_y}")
                 check_y = arr[b + t + seq_size, f]
                 assert cur_y == check_y, "Values Y missmatch"
+
+
+arr_list3 = [
+        (np.random.random((10, 1)), 1, 1),
+        (np.random.random((10, 1)), 2, 1),
+        (np.random.random((10, 1)), 3, 1),
+        (np.random.random((10, 1)), 5, 1),
+        (np.random.random((10, 1)), 7, 1),
+
+        (np.random.random((10, 1)), 3, 3),
+        (np.random.random((10, 1)), 4, 4),
+        (np.random.random((10, 1)), 5, 5),
+]
+
+
+@pytest.mark.parametrize("arr,intv,seq_size", arr_list3)
+def test7_intervals(arr, intv, seq_size):
+    """Checking values"""
+    fwd_intervals = [intv]
+    arr = arr.reshape(-1, 1)
+
+    x, y = to_sequences_forward(arr, seq_size, fwd_intervals=fwd_intervals)
+
+    print(f"Intervals: {fwd_intervals}, seq: {seq_size}")
+    print(arr)
+    print(arr.shape)
+    print(x.shape, y.shape)
+
+    assert len(x) == len(arr) - seq_size - max(fwd_intervals) + 1
+    assert len(y) == len(arr) - seq_size - max(fwd_intervals) + 1
+
+    B, T, F = y.shape
+
+    for b in range(B):
+        for t in range(T):
+            for f in range(F):
+                fw_y = y[b, t, f]
+
+                # check_y = arr
+                check_y = arr[b + t + seq_size + intv - 1, f]
+                print(f"Checking: b{b}, t{t}, f{f}, {b + t + seq_size + intv - 1, f}, {check_y}")
+                assert fw_y == check_y, "Values Y missmatch"
+
+    # raise ValueError
