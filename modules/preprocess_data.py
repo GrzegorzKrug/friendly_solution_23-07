@@ -317,7 +317,7 @@ def generate_data(csv_path):
 
     "End week indexes"
     split_week_mask = df.loc[:len(df) - 2, 'dayofweek'].values > df.loc[1:, 'dayofweek'].values
-    split_week_inds = np.argwhere(split_week_mask).ravel() + 1
+    # split_week_inds = np.argwhere(split_week_mask).ravel() + 1
 
     # mu = df['non'].mean()
     # vals = (df['bid volume'] - mu)

@@ -9,29 +9,40 @@ class NamingClass:
 
     def __init__(
             self,
-            model_name,
-            arch_name,
+            # model_name,
             arch_series,
-            feat_n,
-            window_n,
-            node_insize,
+            arch_name,
+
+            time_feats,
+            time_window,
+            float_feats,
+
             node_outsize,
             reward_fnum,
+            learning_rate="",
+            optimizer="",
             postfix="",
-
     ):
-        self.model_name = str(model_name)
+        # self.model_name = str(model_name)
         self.arch_name = str(arch_name)
         self.arch_series = str(arch_series)
 
-        self.feat_n = str(feat_n)
-        self.window_n = str(window_n)
+        self.time_feats = str(time_feats)
+        self.time_window = str(time_window)
+        self.float_feats = str(float_feats)
 
-        self.node_insize = str(node_insize)
+        # self.node_insize = str(node_insize)
         self.node_outsize = str(node_outsize)
 
         self.reward_fnum = str(reward_fnum)
-        self.postfix = postfix
+
+        "Optional"
+        self.optimizer = str(optimizer)
+        self.learning_rate = str(learning_rate)
+        self.postfix = str(postfix)
+
+
+
 
     @classmethod
     def read_from_path(cls, path, remove_ext=True):
@@ -49,29 +60,43 @@ class NamingClass:
 
         return cls(*string_args)
 
+    @classmethod
+    def from_path(cls, *a, **kw):
+        return cls.read_from_path(*a, **kw)
+
     @property
     def path(self):
-        text = f"model{self.VAL_SEP}{self.model_name}"
+        text = f"model{self.VAL_SEP}{self.arch_series}"
+        # text += f"{self.PAR_SEP}ar{self.VAL_SEP}{self.arch_series}"
         text += f"{self.PAR_SEP}ar{self.VAL_SEP}{self.arch_name}"
-        text += f"{self.PAR_SEP}ar{self.VAL_SEP}{self.arch_series}"
-        text += f"{self.PAR_SEP}fn{self.VAL_SEP}{self.feat_n}"
-        text += f"{self.PAR_SEP}wn{self.VAL_SEP}{self.window_n}"
-        text += f"{self.PAR_SEP}ni{self.VAL_SEP}{self.node_insize}"
+
+        text += f"{self.PAR_SEP}tf{self.VAL_SEP}{self.time_feats}"
+        text += f"{self.PAR_SEP}tw{self.VAL_SEP}{self.time_window}"
+        text += f"{self.PAR_SEP}ff{self.VAL_SEP}{self.float_feats}"
+
+        # text += f"{self.PAR_SEP}ni{self.VAL_SEP}{self.node_insize}"
         text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.node_outsize}"
         text += f"{self.PAR_SEP}rf{self.VAL_SEP}{self.reward_fnum}"
+        text += f"{self.PAR_SEP}lr{self.VAL_SEP}{self.learning_rate}"
+        text += f"{self.PAR_SEP}op{self.VAL_SEP}{self.optimizer}"
         text += f"{self.PAR_SEP}pf{self.VAL_SEP}{self.postfix}"
 
         return text
 
     def copy(self):
         return NamingClass(
-                self.model_name,
                 self.arch_series,
                 self.arch_name,
-                self.node_insize,
+
+                self.time_feats,
+                self.time_window,
+                self.float_feats,
+
                 self.node_outsize,
                 self.reward_fnum,
-                self.feat_n,
+                self.learning_rate,
+                self.optimizer,
+                self.postfix,
         )
 
     def __str__(self):
