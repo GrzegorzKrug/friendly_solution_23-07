@@ -270,18 +270,20 @@ def grid(time_feats, time_window, float_feats, out_size):
     counter = 1
     for arch_num in [1, 2, 3, 6]:
         for loss in ['mse', 'mae']:
-            for nodes in [100, 300, 500, 1000]:
-                for batch in [500]:
-                    arch = ArchRegister.funcs[arch_num]
-                    model = arch(
-                            time_feats, time_window, float_feats, out_size, nodes,
-                            compile=False
-                    )
-                    model: keras.Model
-                    model.compile('adam', loss=loss)
+            for nodes in [300, 500]:
+                for batch in [1000]:
+                    for lr in [1e-3, 1e-4]:
+                        arch = ArchRegister.funcs[arch_num]
+                        model = None
+                        # model = arch(
+                        #         time_feats, time_window, float_feats, out_size, nodes,
+                        #         compile=False
+                        # )
+                        # model: keras.Model
+                        # model.compile('adam', loss=loss)
 
-                    yield counter, model, (arch_num, loss, nodes, batch)
-                    counter += 1
+                        yield counter, model, (arch_num, loss, nodes, batch, lr)
+                        counter += 1
 
 
 def plot_all_architectures():
@@ -292,16 +294,22 @@ def plot_all_architectures():
 
 
 if __name__ == "__main__":
-    naming = NamingClass(2, "", 1, 5, 1, 3, 1, postfix="")
+    # naming = NamingClass(2, "", 1, 5, 1, 3, 1, postfix="")
 
-    samples = 2
-    time_window = 5
-    time_feat = 2
+    # samples = 2
+    time_window = 100
+    time_feats = 10
     float_f = 1
     out_size = 5
+    reward_fn = 1
 
     # arch_1(1, 1, 1, 1, compile=False)
-    for i, mod, params in grid():
-        print(mod)
+    for i, mod, (arch_i, loss, nodes, batch, lr) in grid(time_feats, time_window, float_f, out_size):
+        print(i, arch_i, loss, nodes, batch, lr)
+        naming = NamingClass(
+                arch_i, "", time_feats, time_window, float_f, out_size, nodes,
+                lr, loss, batch,
+        )
+        os.makedirs(models_folder + naming.path, exist_ok=True)
 
     # plot_all_architectures()
