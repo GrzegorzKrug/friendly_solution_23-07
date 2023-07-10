@@ -9,40 +9,40 @@ class NamingClass:
 
     def __init__(
             self,
-            # model_name,
             arch_series,
             arch_name,
 
             time_feats,
             time_window,
             float_feats,
+            outsize,
+            node_size,
 
-            node_outsize,
-            reward_fnum,
-            learning_rate="",
+            learning_rate,
+            loss,
+            batch,
+
             optimizer="",
+            reward_fnum="",
             postfix="",
     ):
-        # self.model_name = str(model_name)
         self.arch_name = str(arch_name)
         self.arch_series = str(arch_series)
 
         self.time_feats = str(time_feats)
         self.time_window = str(time_window)
         self.float_feats = str(float_feats)
+        self.outsize = str(outsize)
+        self.node_size = str(node_size)
 
-        # self.node_insize = str(node_insize)
-        self.node_outsize = str(node_outsize)
-
-        self.reward_fnum = str(reward_fnum)
+        self.learning_rate = str(learning_rate)
+        self.loss = str(loss)
+        self.batch = str(batch)
 
         "Optional"
         self.optimizer = str(optimizer)
-        self.learning_rate = str(learning_rate)
+        self.reward_fnum = str(reward_fnum)
         self.postfix = str(postfix)
-
-
-
 
     @classmethod
     def read_from_path(cls, path, remove_ext=True):
@@ -74,11 +74,15 @@ class NamingClass:
         text += f"{self.PAR_SEP}tw{self.VAL_SEP}{self.time_window}"
         text += f"{self.PAR_SEP}ff{self.VAL_SEP}{self.float_feats}"
 
-        # text += f"{self.PAR_SEP}ni{self.VAL_SEP}{self.node_insize}"
-        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.node_outsize}"
-        text += f"{self.PAR_SEP}rf{self.VAL_SEP}{self.reward_fnum}"
-        text += f"{self.PAR_SEP}lr{self.VAL_SEP}{self.learning_rate}"
+        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.outsize}"
+        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.node_size}"
+
+        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.learning_rate}"
+        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.loss}"
+        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.batch}"
+
         text += f"{self.PAR_SEP}op{self.VAL_SEP}{self.optimizer}"
+        text += f"{self.PAR_SEP}rf{self.VAL_SEP}{self.reward_fnum}"
         text += f"{self.PAR_SEP}pf{self.VAL_SEP}{self.postfix}"
 
         return text
@@ -92,10 +96,14 @@ class NamingClass:
                 self.time_window,
                 self.float_feats,
 
-                self.node_outsize,
-                self.reward_fnum,
+                self.outsize,
+                self.node_size,
                 self.learning_rate,
+                self.loss,
+                self.batch,
+
                 self.optimizer,
+                self.reward_fnum,
                 self.postfix,
         )
 
