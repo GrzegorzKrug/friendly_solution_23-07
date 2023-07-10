@@ -49,104 +49,259 @@ class ArchRegister:
         return wrapper
 
 
-def compile_decorator(fun):
-    @wraps(fun)
-    def wrapper(*a, compile=True, **kw):
-        model = fun(*a, **kw)
-        if compile:
-            model.compile(optimizer='adam', loss='mae')
-        return model
+def compile_decorator(**optimkwargs):
+    def outer_wrapper(fun):
+        # print("kwargs:", optimkwargs)
+        opt_kw_params = dict(optimizer='adam', loss='mae')
+        opt_kw_params.update(optimkwargs)
 
-    return wrapper
+        @wraps(fun)
+        def wrapper(*a, compile=True, **kw):
+            model = fun(*a, **kw)
+            if compile:
+                print(f"Compiling with params: {opt_kw_params}")
+                model.compile(**opt_kw_params, metrics=['mse', 'mae', 'logcosh'])
+
+            return model
+
+        return wrapper
+
+    return outer_wrapper
 
 
 @ArchRegister.register(1)
-@compile_decorator
-def arch_1(tser_size, tser_outsize, ft_size=0):
-    model = Sequential()
-    model.add(LSTM(600, return_sequences=False, input_shape=(1, tser_size)))
-    model.add(Dense(50))
-    model.add(Dense(tser_outsize, activation='linear'))
-    model.compile(optimizer='adam', loss='mae')
+@compile_decorator()
+def arch_1(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(
+            time_feats, time_window, float_feats, out_size, nodes,
+            float_only_nodes=1,
+    )
 
     return model
 
 
 @ArchRegister.register(2)
-@compile_decorator
-def arch_2(tser_size=5, tser_outsize=1, tser_features=1, ft_size=1, nodes=100):
-    # model = Sequential()
-    # model = Model(inputs=Input(shape=(20, 1)), outputs=(5,))
-    # model = model(Input(shape=(20, 1)))
-    layer_in = Input(shape=(tser_size + ft_size,))
-    print(f"Inp: {layer_in.shape}")
-
-    layes = tf.split(layer_in, [tser_size, ft_size], axis=1)
-    # print(f"Lays0: {layes[0].shape}")
-    # print(f"Lays1: {layes[1].shape}")
-
-    ls_inp = tf.reshape(layes[0], (-1, tser_size, tser_features))
-    # print("Reshape:", ls_inp.shape)
-    ls1 = LSTM(nodes)(ls_inp)
-    ls1 = Flatten()(ls1)
-
-    ls2 = LSTM(nodes, return_sequences=True)(ls_inp)
-    ls2 = LSTM(nodes)(ls2)
-    ls2 = Flatten()(ls2)
-
-    conc = Concatenate(axis=1)([ls1, ls2, layes[1]])
-
-    dens = Dense(nodes, activation='relu')(conc)
-    last = Dense(tser_outsize, activation='linear')(dens)
-    model = Model(inputs=layer_in, outputs=last)
+@compile_decorator()
+def arch_2(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(
+            time_feats, time_window, float_feats, out_size, nodes,
+            lst_on_left=2, float_only_nodes=1,
+    )
 
     return model
 
 
 @ArchRegister.register(3)
-@compile_decorator
-def arch_3(time_window=5, tser_outsize=1, time_f=1, ft_size=1, nodes=100):
-    # model = Sequential()
-    # model = Model(inputs=Input(shape=(20, 1)), outputs=(5,))
-    # model = model(Input(shape=(20, 1)))
-    layer_in = Input(shape=(time_window + ft_size,))
-    print(f"Inp: {layer_in.shape}")
-
-    layes = tf.split(layer_in, [time_window, ft_size], axis=1)
-    # print(f"Lays0: {layes[0].shape}")
-    # print(f"Lays1: {layes[1].shape}")
-
-    ls_inp = tf.reshape(layes[0], (-1, time_window, time_f))
-    # print("Reshape:", ls_inp.shape)
-    ls1 = LSTM(nodes)(ls_inp)
-    ls1 = Flatten()(ls1)
-
-    ls2 = LSTM(nodes, return_sequences=True)(ls_inp)
-    ls2 = LSTM(nodes)(ls2)
-    ls2 = Flatten()(ls2)
-
-    conc = Concatenate(axis=1)([ls1, ls2, layes[1]])
-
-    dens = Dense(nodes, activation='relu')(conc)
-    last = Dense(tser_outsize, activation='linear')(dens)
-    model = Model(inputs=layer_in, outputs=last)
+@compile_decorator()
+def arch_3(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(
+            time_feats, time_window, float_feats, out_size, nodes,
+            lst_on_left=2, common_nodes=2, float_only_nodes=2
+    )
 
     return model
 
 
-data_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
+@ArchRegister.register(4)
+@compile_decorator()
+def arch_4(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, float_only_nodes=6)
+
+    return model
+
+
+@ArchRegister.register(5)
+@compile_decorator()
+def arch_5(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, common_nodes=3)
+
+    return model
+
+
+@ArchRegister.register(6)
+@compile_decorator()
+def arch_6(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_pyramid(
+            float_feats, nodes, out_size, time_feats, time_window,
+            pyramid_max=3, pyramid_min=1,
+            float_only_nodes=2,
+            common_nodes=2, )
+
+    return model
+
+
+@ArchRegister.register(7)
+@compile_decorator()
+def arch_7(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_pyramid(
+            float_feats, nodes, out_size, time_feats, time_window,
+            pyramid_max=4, pyramid_min=2,
+            float_only_nodes=2,
+            common_nodes=2, )
+
+    return model
+
+
+def builder_2pipes(
+        time_feats, time_window, float_feats, out_size, nodes,
+        lst_on_left=1, float_only_nodes=0, common_nodes=1):
+    """
+    2 Pipe lines
+    Args:
+        float_feats:
+        nodes:
+        out_size:
+        time_feats:
+        time_window:
+        lst_on_left:
+        float_only_nodes:
+        common_nodes:
+
+    Returns:
+
+    """
+    time_input = Input(shape=(time_window, time_feats), name="2D Timeseries")
+    float_input = Input(shape=(float_feats,), name="1D Floats")
+
+    "Time series LSTM"
+    ls_inp = tf.reshape(time_input, (-1, time_window, time_feats))
+    if lst_on_left > 1:
+        lstm_l = LSTM(nodes, return_sequences=True)(ls_inp)
+        for i in range(lst_on_left - 2):
+            lstm_l = LSTM(nodes, return_sequences=True)(lstm_l)
+        lstm_l = LSTM(nodes)(lstm_l)
+    else:
+        lstm_l = LSTM(nodes)(ls_inp)
+        print("LSTM")
+        print(lstm_l.shape)
+
+    "Float section"
+    fl_dense = float_input
+    if float_only_nodes > 0:
+        for i in range(float_only_nodes):
+            fl_dense = Dense(nodes, activation='relu')(fl_dense)
+
+    ls1 = Flatten()(lstm_l)
+    conc = Concatenate(axis=1)([ls1, fl_dense])
+
+    "Common section"
+    dens = conc
+    if common_nodes > 0:
+        for i in range(common_nodes):
+            dens = Dense(nodes, activation='relu')(dens)
+
+    last = Dense(out_size, activation='linear')(dens)
+    "Assign inputs / outputs"
+    model = Model(inputs=[time_input, float_input], outputs=last)
+    return model
+
+
+def builder_pyramid(
+        float_feats, nodes, out_size, time_feats, time_window,
+        pyramid_max=1, pyramid_min=1, float_only_nodes=0, common_nodes=1,
+
+):
+    """
+    2
+    Args:
+        float_feats:
+        nodes:
+        out_size:
+        time_feats:
+        time_window:
+        pyramid_max:
+        float_only_nodes:
+        common_nodes:
+
+    Returns:
+
+    """
+    time_input = Input(shape=(time_window, time_feats), name="2D Timeseries")
+    float_input = Input(shape=(float_feats,), name="1D Floats")
+
+    "Time series LSTM"
+    ls_inp = tf.reshape(time_input, (-1, time_window, time_feats))
+    arr = [Flatten()(make_flat_lstm_sequence(ls_inp, nodes, val))
+           for val in range(pyramid_max + 1) if val >= pyramid_min
+           ]
+
+    "Float section"
+    fl_dense = float_input
+    if float_only_nodes > 0:
+        for i in range(float_only_nodes):
+            fl_dense = Dense(nodes, activation='relu')(fl_dense)
+
+    conc = Concatenate(axis=1)([*arr, fl_dense])
+
+    "Common section"
+    dens = conc
+    if common_nodes > 0:
+        for i in range(common_nodes):
+            dens = Dense(nodes, activation='relu')(dens)
+
+    last = Dense(out_size, activation='linear')(dens)
+    "Assign inputs / outputs"
+    model = Model(inputs=[time_input, float_input], outputs=last)
+    return model
+
+
+def make_flat_lstm_sequence(ls_inp, nodes, how_many):
+    if how_many > 1:
+        lstm_l = LSTM(nodes, return_sequences=True)(ls_inp)
+        for i in range(how_many - 2):
+            lstm_l = LSTM(nodes, return_sequences=True)(lstm_l)
+        lstm_l = LSTM(nodes)(lstm_l)
+    else:
+        lstm_l = LSTM(nodes)(ls_inp)
+    return lstm_l
+
+
+models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
+
+
+def grid(time_feats, time_window, float_feats, out_size):
+    counter = 1
+    for arch_num in [1, 2, 3, 6]:
+        for loss in ['mse', 'mae']:
+            for nodes in [100, 300, 500, 1000]:
+                for batch in [500]:
+                    arch = ArchRegister.funcs[arch_num]
+                    model = arch(
+                            time_feats, time_window, float_feats, out_size, nodes,
+                            compile=False
+                    )
+                    model: keras.Model
+                    model.compile('adam', loss=loss)
+
+                    yield counter, model, (arch_num, loss, nodes, batch)
+                    counter += 1
+
+
+def plot_all_architectures():
+    for name, func in ArchRegister.funcs.items():
+        print(name, func)
+        model = func(1, 1, 1, 1)
+        keras.utils.plot_model(model, models_folder + f"{name}.png")
+
 
 if __name__ == "__main__":
     naming = NamingClass(2, "", 1, 5, 1, 3, 1, postfix="")
 
-    model = arch_3()
+    samples = 2
+    time_window = 5
+    time_feat = 2
+    float_f = 1
+    out_size = 5
 
-    model: keras.Model
-    model_dir = data_folder + naming.path + os.path.sep
-    print(f"Making folder: {model_dir}")
-    os.makedirs(model_dir, exist_ok=True)
+    # arch_1(1, 1, 1, 1, compile=False)
+    for i, mod, params in grid():
+        print(mod)
 
-    fp_path = model_dir + "weights.keras"
-    print(f"Saving weights to: {fp_path}")
-    model.save_weights(fp_path)
-    keras.utils.plot_model(model, to_file=model_dir + "mode.png")
+    # plot_all_architectures()
