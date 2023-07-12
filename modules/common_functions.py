@@ -10,7 +10,7 @@ class NamingClass:
     def __init__(
             self,
             arch_series,
-            arch_name,
+            iteration,
 
             time_feats,
             time_window,
@@ -26,8 +26,8 @@ class NamingClass:
             reward_fnum="",
             postfix="",
     ):
-        self.arch_name = str(arch_name)
         self.arch_series = str(arch_series)
+        self.iteration = str(iteration)
 
         self.time_feats = str(time_feats)
         self.time_window = str(time_window)
@@ -68,7 +68,7 @@ class NamingClass:
     def path(self):
         text = f"model{self.VAL_SEP}{self.arch_series}"
         # text += f"{self.PAR_SEP}ar{self.VAL_SEP}{self.arch_series}"
-        text += f"{self.PAR_SEP}ar{self.VAL_SEP}{self.arch_name}"
+        text += f"{self.PAR_SEP}it{self.VAL_SEP}{self.iteration}"
 
         text += f"{self.PAR_SEP}tf{self.VAL_SEP}{self.time_feats}"
         text += f"{self.PAR_SEP}tw{self.VAL_SEP}{self.time_window}"
@@ -90,7 +90,7 @@ class NamingClass:
     def copy(self):
         return NamingClass(
                 self.arch_series,
-                self.arch_name,
+                self.iteration,
 
                 self.time_feats,
                 self.time_window,
