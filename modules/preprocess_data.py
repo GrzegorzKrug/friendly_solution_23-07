@@ -5,9 +5,13 @@ import os
 
 from datetime import timedelta
 
+from common_settings import path_data_clean_folder
+
 
 folder_danych = os.path.abspath(os.path.join("..", "dane", "")) + os.path.sep
-folder_danych_clean = os.path.abspath(os.path.join("..", "dane", "clean", "")) + os.path.sep
+
+
+# path_data_clean_folder = os.path.abspath(os.path.join("..", "dane", "clean", "")) + os.path.sep
 
 
 def clean_col(name):
@@ -128,7 +132,7 @@ def preprocess(df, firstday_index=8895, allow_plot=False):
         # plt.plot(y2 / x_week / 2000, label="close speed", alpha=0.4, color='blue')
         # plt.plot(x_week, label="xweek", alpha=0.5, color='black')
 
-        y_wsk = plt_df['obv length'].to_numpy() / 3000
+        # y_wsk = plt_df['obv length'].to_numpy() / 3000
         # plt.plot(y_wsk, label="obv", alpha=0.7, color='black')
 
         plt.legend()
@@ -143,10 +147,11 @@ def preprocess(df, firstday_index=8895, allow_plot=False):
     # plt.plot(df['last'])
     # plt.show()
 
-    df.to_csv(os.path.join("..", "dane", "clean", "test.csv"), index=False)
+    df.to_csv(os.path.join("..", "dane", "clean", "cleaned.csv"), index=False)
+    return df
 
 
-NORM_DICT = {
+DATA_NORM_DICT = {
         "divide price": {
                 "method": "div", "value": 5000,
                 "keys": [
@@ -197,7 +202,7 @@ def normalize(df):
     # ]
 
     # drop_keys =
-    for name, norm_dc_params in NORM_DICT.items():
+    for name, norm_dc_params in DATA_NORM_DICT.items():
         df[norm_dc_params['keys']]  # Check Key in df
         mth = norm_dc_params['method']
         if mth == "div":
@@ -284,8 +289,9 @@ def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_
 from common_functions import interp_2d, interp_1d_sub
 
 
-def interpolate_segments(segments_list, int_interval_s=1):
+def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
     out_list = []
+    out_columns = []
     print("OVB is here")
 
     for segment in segments_list:
@@ -297,26 +303,45 @@ def interpolate_segments(segments_list, int_interval_s=1):
         segment = segment.drop(columns=['timestamp_ns'])
         tm_uniform = np.arange(tm_s[0], tm_s[-1] + int_interval_s, int_interval_s)
 
-        out_array = np.array(tm_uniform).reshape(-1, 1)
+        if include_time:
+            columns = ['timestamp_ns']
+            out_array = np.array(tm_uniform).reshape(-1, 1)
+        else:
+            out_array = None
+            columns = []
 
-        for col in segment:
-            print(f"Interpolating: {col}")
+        for c_i, col in enumerate(segment):
+            print(f"Interpolating: {c_i}: {col}")
             vals = segment[col].values
             vals_uni = interp_1d_sub(tm_uniform, tm_s, vals).reshape(-1, 1)
-            out_array = np.concatenate([out_array, vals_uni], axis=1)
+
+            if out_array is None:
+                out_array = vals_uni
+            else:
+                out_array = np.concatenate([out_array, vals_uni], axis=1)
+            columns.append(col)
 
         # print(vals_uni.shape, tm_uniform.shape, tm_s.shape)
         out_list.append(out_array)
-    return out_list
+        out_columns.append(columns)
+    return out_list, out_columns
 
 
-def generate_data(csv_path):
+def generate_interpolated_data(
+        dataframe=None, csv_path=None, interval_s=1,
+        include_time=True,
+):
     """"""
-    "Load df"
-    df = pd.read_csv(csv_path)
+    if dataframe is None:
+        "Load df"
+        if csv_path is None:
+            raise ValueError("Must use `dataframe` or `csv_path` keyparam.")
+        df = pd.read_csv(csv_path)
+    else:
+        df = dataframe
 
-    "End week indexes"
-    split_week_mask = df.loc[:len(df) - 2, 'dayofweek'].values > df.loc[1:, 'dayofweek'].values
+    # "End week indexes"
+    # split_week_mask = df.loc[:len(df) - 2, 'dayofweek'].values > df.loc[1:, 'dayofweek'].values
     # split_week_inds = np.argwhere(split_week_mask).ravel() + 1
 
     # mu = df['non'].mean()
@@ -330,25 +355,55 @@ def generate_data(csv_path):
     "Normalize data"
     df = normalize(df)
 
-    df.to_csv(folder_danych_clean + "normalized.csv", index=False)
+    df.to_csv(path_data_clean_folder + "normalized.csv", index=False)
 
     segments = [df]
+    # columns = [list(df.columns)]
+    # print(columns)
+    # columns[0].remove("timestamp_ns")
+    # print(columns)
     # inds = np.concatenate([[0], split_week_inds, [len(df)]])
     # for start, stop in zip(inds, inds[1:]):
     #     week_segment = df.iloc[start:stop, :]
     #     segments.append(week_segment)
+    # print("df shape:", df.shape)
+    print("interp input shape:", segments[0].shape)
 
-    segments_uni = interpolate_segments(segments, int_interval_s=1)
+    segments_uni, columns = interpolate_segments(
+            segments,
+            int_interval_s=interval_s,
+            include_time=include_time
+    )
     del segments
 
-    print(segments_uni[0][0, :])
+    # print(segments_uni[0][0, :])
+    return segments_uni, columns
 
 
 if __name__ == "__main__":
-    # input_data_path = folder_danych + "on_balance_volume.txt"
-    # dataframe = pd.read_csv(input_data_path)
-    # preprocess(dataframe)
+    input_data_path = folder_danych + "on_balance_volume.txt"
+    dataframe = pd.read_csv(input_data_path)
+    dataframe = preprocess(dataframe)
 
     # print(folder_danych_clean)
-    path = os.path.join(folder_danych_clean, "test.csv")
-    generate_data(path)
+    # path = os.path.join(folder_danych_clean, "test.csv")
+    segments, columns = generate_interpolated_data(dataframe=dataframe)
+    # print(segment)
+    segment = segments[0]
+    columns = columns[0]
+    print("final shape:", segment.shape)
+
+    np.save(path_data_clean_folder + "int_norm_WTime.arr.npy", segment)
+    np.save(path_data_clean_folder + "int_norm_WTime.columns.npy", columns)
+    print(columns)
+    # print(dataframe.columns)
+    #
+    # arr2 = np.load(path_data_clean_folder + "int_norm.arr.npy", allow_pickle=True)
+    # arr2_cols = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
+    #
+    # # print(segment[:3, :5])
+    # # print(arr2[:3, :5])
+    # print(arr2_cols.shape)
+    #
+    # print(arr2_cols)
+    # print(arr2_cols.dtype)
