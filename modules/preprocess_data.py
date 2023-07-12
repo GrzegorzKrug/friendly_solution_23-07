@@ -7,6 +7,8 @@ from datetime import timedelta
 
 from common_settings import path_data_clean_folder
 
+from modules.common_functions import to_sequences_forward
+
 
 folder_danych = os.path.abspath(os.path.join("..", "dane", "")) + os.path.sep
 
@@ -258,35 +260,10 @@ def to_sequences_2d(dataset, seq_size=1):
     return np.array(x), np.array(y)
 
 
-def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
-    x = []
-    y = []
-    offset_arr = np.array(fwd_intervals) - 1
-    last_minus = max(fwd_intervals) - 1
-    for i in range(len(array) - seq_size - last_minus):
-        window = array[i:(i + seq_size), :]
-        x.append(window)
-        sub_arr = array[i + seq_size + offset_arr, :]
-        y.append(sub_arr)
-    return np.array(x), np.array(y)
+# @measure_real_time_decorator
 
 
-def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_amount=0):
-    x = []
-    y = []
-    offset_arr = np.array(fwd_intervals) - 1
-    last_minus = max(fwd_intervals) - 1
-    columns = array.shape[1]
-    lstm_cols = columns - ft_amount
-    for i in range(len(array) - seq_size - last_minus):
-        window = array[i:(i + seq_size), :]
-        x.append(window)
-        sub_arr = array[i + seq_size + offset_arr, :lstm_cols]
-        y.append(sub_arr)
-    return np.array(x), np.array(y)
-
-
-from common_functions import interp_2d, interp_1d_sub
+from common_functions import interp_1d_sub
 
 
 def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
@@ -387,16 +364,27 @@ if __name__ == "__main__":
 
     # print(folder_danych_clean)
     # path = os.path.join(folder_danych_clean, "test.csv")
-    segments, columns = generate_interpolated_data(dataframe=dataframe)
+    segments, columns = generate_interpolated_data(dataframe=dataframe, include_time=False)
     # print(segment)
     segment = segments[0]
     columns = columns[0]
     print("final shape:", segment.shape)
 
-    np.save(path_data_clean_folder + "int_norm_WTime.arr.npy", segment)
-    np.save(path_data_clean_folder + "int_norm_WTime.columns.npy", columns)
-    print(columns)
+    np.save(path_data_clean_folder + "int_norm.arr.npy", segment)
+    np.save(path_data_clean_folder + "int_norm.columns.npy", columns)
+    # print(columns)
     # print(dataframe.columns)
+
+    # segment = segment[:1000, :]
+    print(segment.shape)
+
+    twindow = 200
+    sequences, _ = to_sequences_forward(segment[:int(len(segment) * 0.6)], twindow, [1])
+    # print(sequences[:5, :, :4])
+    print(sequences.shape)
+
+    # np.save(path_data_clean_folder + f"int_norm.sequences-W{twindow}.npy", sequences)
+    # np.save(path_data_clean_folder + "int_norm_WTime.columns.npy", columns)
     #
     # arr2 = np.load(path_data_clean_folder + "int_norm.arr.npy", allow_pickle=True)
     # arr2_cols = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)

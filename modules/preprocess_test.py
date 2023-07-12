@@ -2,8 +2,8 @@ import pytest
 
 from preprocess_data import (
     timestr_to_dayfraction, to_sequences_1d, to_sequences_2d,
-    to_sequences_forward,
 )
+from modules.common_functions import to_sequences_forward
 import numpy as np
 
 
