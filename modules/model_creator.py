@@ -22,6 +22,8 @@ from tensorflow.keras.models import Model, Sequential
 from tensorflow.keras.optimizers import Adam, SGD
 from tensorflow.keras.utils import plot_model
 
+from keras.optimizers import Adam
+
 import keras
 
 from common_functions import NamingClass
@@ -266,7 +268,7 @@ def make_flat_lstm_sequence(ls_inp, nodes, how_many):
 models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 
-def grid(time_feats, time_window, float_feats, out_size):
+def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
     for arch_num in [1, 2, 3, 6]:
         for loss in ['mse', 'mae']:
@@ -274,13 +276,14 @@ def grid(time_feats, time_window, float_feats, out_size):
                 for batch in [1000]:
                     for lr in [1e-3, 1e-4]:
                         arch = ArchRegister.funcs[arch_num]
-                        model = None
-                        # model = arch(
-                        #         time_feats, time_window, float_feats, out_size, nodes,
-                        #         compile=False
-                        # )
-                        # model: keras.Model
-                        # model.compile('adam', loss=loss)
+                        # model = None
+                        model = arch(
+                                time_feats, time_window, float_feats, out_size, nodes,
+                                compile=False
+                        )
+                        model: keras.Model
+                        adam = Adam(learning_rate=lr)
+                        model.compile(loss=loss, optimizer=adam)
 
                         yield counter, model, (arch_num, loss, nodes, batch, lr)
                         counter += 1
@@ -304,12 +307,15 @@ if __name__ == "__main__":
     reward_fn = 1
 
     # arch_1(1, 1, 1, 1, compile=False)
-    for i, mod, (arch_i, loss, nodes, batch, lr) in grid(time_feats, time_window, float_f, out_size):
+    for i, compiled_model, (arch_i, loss, nodes, batch, lr) in grid_models_generator(time_feats, time_window, float_f,
+                                                                                     out_size):
         print(i, arch_i, loss, nodes, batch, lr)
         naming = NamingClass(
                 arch_i, "", time_feats, time_window, float_f, out_size, nodes,
                 lr, loss, batch,
         )
         os.makedirs(models_folder + naming.path, exist_ok=True)
+        compiled_model: keras.Model
+        compiled_model.save_weights(models_folder + naming.path + os.path.sep + "weights.keras")
 
     # plot_all_architectures()
