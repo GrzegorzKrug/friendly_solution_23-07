@@ -10,10 +10,7 @@ from common_settings import path_data_clean_folder
 from modules.common_functions import to_sequences_forward
 
 
-folder_danych = os.path.abspath(os.path.join("..", "dane", "")) + os.path.sep
-
-
-# path_data_clean_folder = os.path.abspath(os.path.join("..", "dane", "clean", "")) + os.path.sep
+folder_danych = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dane", "")) + os.path.sep
 
 
 def clean_col(name):
@@ -149,7 +146,7 @@ def preprocess(df, firstday_index=8895, allow_plot=False):
     # plt.plot(df['last'])
     # plt.show()
 
-    df.to_csv(os.path.join("..", "dane", "clean", "cleaned.csv"), index=False)
+    df.to_csv(os.path.join(path_data_clean_folder, "cleaned.csv"), index=False)
     return df
 
 
