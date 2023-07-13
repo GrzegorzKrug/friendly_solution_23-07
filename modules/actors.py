@@ -22,9 +22,9 @@ def initialize_agents(agents_n, start_stock=0):
     # return state, staring_state
     # states = np.random.random((agents_n, 1)) + 0.5
     disc_state = np.zeros((agents_n, 1))
-    cargo = np.zeros((agents_n, 1), dtype=int) + start_stock
-    cash = np.random.random((agents_n, 1)) + 1
 
+    cash = np.random.random((agents_n, 1)) + 1
+    cargo = np.zeros((agents_n, 1), dtype=int) + start_stock
     hidden_state = np.concatenate([cash, cash.copy(), cargo], axis=1)
 
     return disc_state, hidden_state
@@ -43,6 +43,28 @@ def resolve_actions(cur_step_price, discrete_states, hidden_states, actions, pri
     Returns:
 
     """
+    new_disc_state = discrete_states.copy()
+    new_hidden_state = hidden_states.copy()
     for i, (dsc_state, hid_state, act) in enumerate(zip(discrete_states, hidden_states, actions)):
-        pass
-    return discrete_states, hidden_states
+        if act == 0:
+            "BUY"
+            new_disc_state[i] = 1
+            new_hidden_state[0] -= cur_step_price * price_mod
+            hid_state[2] += 1
+
+        elif act == 1:
+            pass
+        elif act == 2:
+            "SELL"
+            if new_hidden_state[i][2] <= 0:
+                new_hidden_state[i][2] = 0
+            else:
+                new_hidden_state[i][2] -= 1
+                new_hidden_state[i][0] += cur_step_price * price_mod
+
+                if new_hidden_state[i][2] > 0:
+                    new_disc_state[i] = 1
+                else:
+                    new_disc_state[i] = 0
+
+    return new_disc_state, new_hidden_state

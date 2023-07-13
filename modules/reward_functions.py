@@ -67,9 +67,10 @@ def reward_fun_template(
 @RewardStore.add(1)
 # @numba.njit()
 def reward_fun_1(
-        env_arr, actor_state_arr, action: int,
+        env_arr, discrete_state, action: int,
         hidden_arr,
         done=False,
+        price=0,
         # price_col_ind=0,
         # initial_cash=0,
 ):
@@ -79,12 +80,12 @@ def reward_fun_1(
 
     # time_now = last_row[0]
     # price_sample = last_row[4]
-    initial_cash, price, discrete_stock = hidden_arr
+    cash, initial_cash, discrete_stock = hidden_arr
 
     # price_now = env_arr[0, price_col_ind]
     # print(f"Price now:", price_now)
     if done:
-        cash = actor_state_arr[0]
+        # cash = discrete_state[0]
         end_cash = cash + price * discrete_stock
         gain = end_cash - initial_cash
         return gain * ENDING_GAIN_SCALE, True

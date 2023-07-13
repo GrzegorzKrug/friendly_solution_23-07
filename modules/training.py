@@ -86,7 +86,7 @@ def get_eps(n, epoch_max, repeat=5, eps_power=0.4, max_explore=0.8):
 def train_qmodel(
         model_keras: keras.Model, naming_ob: NamingClass,
         datalist_2dsequences_ordered_train, price_col_ind,
-        fulltrain_ntimes=3, agents_n=10,
+        fulltrain_ntimes=1000, agents_n=50,
 
         allow_train=True, fresh_memory: ModelMemory = None,
 
@@ -224,7 +224,7 @@ def train_qmodel(
                 hidden_arr[1] = cur_step_price
 
                 rew, valid = reward_fun(
-                        env_state_arr, state_arr, act, hidden_arr, done_session
+                        env_state_arr, state_arr, act, hidden_arr, done_session, cur_step_price,
                 )
                 rewards.append(rew)
                 valids.append(valid)
@@ -234,7 +234,7 @@ def train_qmodel(
                 env_states_inds_fut = [i_sample + 1] * agents_n
                 # agents_states = agents_discrete_states.copy()
                 new_states, new_hidden_states = resolve_actions(
-                        cur_step_price, agents_discrete_states.copy(), hidden_states, actions
+                        cur_step_price, agents_discrete_states, hidden_states, actions
                 )
 
                 dones = [done_session] * agents_n
@@ -243,6 +243,14 @@ def train_qmodel(
                                        new_states,
                                        actions, rewards, dones, q_vals)
                 # print(fresh_memory)
+            else:
+                "Dont train"
+                new_states, new_hidden_states = resolve_actions(
+                        cur_step_price, agents_discrete_states.copy(), hidden_states, actions
+                )
+
+            agents_discrete_states = new_states
+            hidden_states = new_hidden_states
 
         # if allow_train:
         #     if time_out_time and time.time() > time_out_time:
@@ -251,12 +259,13 @@ def train_qmodel(
 
         "Session Training"
         if allow_train:
-            deep_q_reinforce(
+            history = deep_q_reinforce(
                     model_keras, fresh_memory,
                     discount=discount,
                     env_data_2d=datalist_2dsequences_ordered_train,
                     mini_batchsize=int(naming_ob.batch),
             )
+            append_data_to_file(history.history['loss'], path_this_model_folder, "hist_loss.npy")
 
         "RESOLVE END SCORE"
 
@@ -264,13 +273,27 @@ def train_qmodel(
         duration = endtime - starttime
         LOOP_TIMES.append(duration)
 
-        if allow_train:
+        if allow_train and not i_train_sess % 10:
             model_keras.save_weights(path_this_model_folder + "weights.keras")
             print("Saved model")
 
+    if allow_train:
+        model_keras.save_weights(path_this_model_folder + "weights.keras")
+        print("Saved model")
+
+    append_data_to_file(LOOP_TIMES, path_this_model_folder, "hist_times.npy")
     print(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     # return history, best, best_all
+
+
+def append_data_to_file(values, path_this_model_folder, file_name):
+    if os.path.isfile(path_this_model_folder + file_name):
+        old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
+        full_hist = np.concatenate([old_hist, values], axis=0)
+    else:
+        full_hist = values
+    np.save(path_this_model_folder + file_name, full_hist)
 
 
 @measure_real_time_decorator
@@ -341,7 +364,8 @@ def deep_q_reinforce(
         fresh_qrow[act] = targ
 
     "Reinforce"
-    mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True, batch_size=mini_batchsize)
+    history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True, batch_size=mini_batchsize)
+    return history_ob
 
 
 def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
@@ -401,29 +425,28 @@ if __name__ == "__main__":
     print(f"Price `last` at col: {price_id}")
     train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
 
-    time_wind = 10
+    time_wind = 60
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:50, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:100000, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
 
     "Model Grid"
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    _, model, (arch_num, loss, nodes, batch, lr) = next(gen1)
+    # _, model, (arch_num, loss, nodes, batch, lr) = next(gen1)
 
-    naming_ob = NamingClass(
-            arch_num, ITERATION,
-            time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
-            node_size=nodes,
+    for counter, model, (arch_num, loss, nodes, batch, lr) in gen1:
+        naming_ob = NamingClass(
+                arch_num, ITERATION,
+                time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
+                node_size=nodes,
 
-            learning_rate=lr, loss=loss, batch=batch
-    )
+                learning_rate=lr, loss=loss, batch=batch
+        )
 
-    # print(train_data.shape)
-    # print(test_data.shape)
-    train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id)
+        train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id)
     # memory = AgentsMemory()
     # memory.add_sample(1, 2, 3, 4, 5, 6, 7, 8)
     #
