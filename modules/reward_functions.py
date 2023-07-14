@@ -86,7 +86,7 @@ def reward_fun_1(
     # print(f"Price now:", price_now)
     if done:
         # cash = discrete_state[0]
-        end_cash = cash + price * discrete_stock
+        end_cash = cash + price * float(discrete_stock)
         gain = end_cash - initial_cash
         return gain * ENDING_GAIN_SCALE, True
     else:

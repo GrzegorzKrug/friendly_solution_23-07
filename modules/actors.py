@@ -10,7 +10,7 @@ def initialize_agents(agents_n, start_stock=0):
 
     Returns:
         Discrete state: Integer of assets
-        Hidden state: [Cash, Starting cash]
+        Hidden state: [Cash, Starting cash, cargo]
 
     """
     # states = np.random.random((agents_n, 1)) * 2 + 1
@@ -49,8 +49,8 @@ def resolve_actions(cur_step_price, discrete_states, hidden_states, actions, pri
         if act == 0:
             "BUY"
             new_disc_state[i] = 1
-            new_hidden_state[0] -= cur_step_price * price_mod
-            hid_state[2] += 1
+            new_hidden_state[i][0] -= cur_step_price * price_mod
+            new_hidden_state[i][2] += 1
 
         elif act == 1:
             pass

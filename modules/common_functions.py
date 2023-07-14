@@ -185,3 +185,16 @@ def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_
         sub_arr = array[i + seq_size + offset_arr, :lstm_cols]
         y.append(sub_arr)
     return np.array(x), np.array(y)
+
+
+def get_splits(data_size=5000, split_size=100):
+    segments = data_size // split_size
+
+    inds = [0]
+    for i in range(1, segments):
+        inds.append(i * split_size)
+
+    if inds[-1] != data_size + 1:
+        inds.append(data_size + 1)
+
+    return inds

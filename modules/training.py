@@ -7,7 +7,7 @@ import sys
 import os
 
 from random import sample
-from common_functions import NamingClass
+from common_functions import NamingClass, get_splits
 from actors import initialize_agents, resolve_actions
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
@@ -17,6 +17,7 @@ from yasiu_native.time import measure_real_time_decorator
 
 
 RUN_LOGGER = logger.logger
+DEBUG_LOGGER = logger.debug_logger
 
 
 class AgentsMemory:
@@ -118,6 +119,7 @@ def train_qmodel(
             f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
     # N_SAMPLES = (data_list_2darr.shape[0] - time_frame)
     N_SAMPLES = len(datalist_2dsequences_ordered_train)
+    WALK_INTERVAL_DEBUG = 250
     RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
     # print(normed_data)
     # print(normed_data.shape)
@@ -187,6 +189,7 @@ def train_qmodel(
             # "Validating = 1 Agent"
             # starting_money_arr = np.array([2])
             # agents_stocks = np.array(START, dtype=float).reshape(1, -1)
+        # print(f"Initial hidden state: {hidden_states[:, 2]}")
 
         "Actions:"
         "0, 1, 2"
@@ -197,7 +200,8 @@ def train_qmodel(
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
-            # RUN_LOGGER.debug(f"isample: {i_sample}")
+            if not i_sample % WALK_INTERVAL_DEBUG:
+                RUN_LOGGER.debug(f"Walking sample: {i_sample}, memory: {len(fresh_memory.memory)}")
 
             if done_session:
                 future_segment3d = None
@@ -231,7 +235,7 @@ def train_qmodel(
 
             cur_step_price = env_state_arr[0, price_col_ind]
             for state_arr, act, hidden_arr in zip(agents_discrete_states, actions, hidden_states):
-                hidden_arr[1] = cur_step_price
+                # hidden_arr[1] = cur_step_price
 
                 rew, valid = reward_fun(
                         env_state_arr, state_arr, act, hidden_arr, done_session, cur_step_price,
@@ -256,7 +260,7 @@ def train_qmodel(
             else:
                 "Dont train"
                 new_states, new_hidden_states = resolve_actions(
-                        cur_step_price, agents_discrete_states.copy(), hidden_states, actions
+                        cur_step_price, agents_discrete_states, hidden_states, actions
                 )
 
             agents_discrete_states = new_states
@@ -265,27 +269,31 @@ def train_qmodel(
         tend_walking = time.time()
         RUN_LOGGER.info(
                 f"Walking through data took: {tend_walking - t0_walking:>5.4f}s. {(tend_walking - t0_walking) / N_SAMPLES:>5.5f}s per step")
-        # if allow_train:
-        #     if time_out_time and time.time() > time_out_time:
-        #         print(f"Timeout, training longer than {timeout / 60:4.3f} min")
-        #         # break
+
+        gain = hidden_states[:, 0] - hidden_states[:, 1]
+        # RUN_LOGGER.debug(f"End gains: {gain}")
+        DEBUG_LOGGER.debug(hidden_states)
+        DEBUG_LOGGER.debug(f"End gains rel: {(gain / hidden_states[:, 1]).reshape(-1, 1)}")
+        # RUN_LOGGER.debug(f"End cargo: {hidden_states[:, 2]}")
 
         "Session Training"
         if allow_train:
-            history = deep_q_reinforce(
+            losses = deep_q_reinforce(
                     model_keras, fresh_memory,
                     discount=discount,
                     env_data_2d=datalist_2dsequences_ordered_train,
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
-            append_data_to_file(history.history['loss'], path_this_model_folder, "hist_loss.npy")
+            append_data_to_file(losses, path_this_model_folder, "hist_loss.npy", axis=1)
 
         "RESOLVE END SCORE"
 
         endtime = time.time()
         duration = endtime - starttime
         LOOP_TIMES.append(duration)
+        DEBUG_LOGGER.info(
+                f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
         RUN_LOGGER.info(
                 f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
 
@@ -298,15 +306,16 @@ def train_qmodel(
         RUN_LOGGER.info(f"Saved weights: {naming_ob}")
 
     append_data_to_file(LOOP_TIMES, path_this_model_folder, "hist_times.npy")
-    print(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+    DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+    RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     # return history, best, best_all
 
 
-def append_data_to_file(values, path_this_model_folder, file_name):
+def append_data_to_file(values, path_this_model_folder, file_name, axis=0):
     if os.path.isfile(path_this_model_folder + file_name):
         old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
-        full_hist = np.concatenate([old_hist, values], axis=0)
+        full_hist = np.concatenate([old_hist, values], axis=axis)
         RUN_LOGGER.debug(f"Saved data to: {file_name}")
     else:
         full_hist = values
@@ -329,78 +338,82 @@ def deep_q_reinforce(
     fresh_samples = fresh_mem.random_samples(0.99)
     RUN_LOGGER.debug(f"Samples amount: {len(fresh_samples)}")
     time0 = time.time()
-    # fresh_samples = np.array(fresh_mem)
-    # print(fresh_samples.shape)
+    split_inds = get_splits(len(fresh_samples), mini_batchsize * 20)
+    losses = []
 
-    # return None
-    envs_inds = []
-    envs_inds_fut = []
-    states = []
-    states_fut = []
-    actions = []
-    rewards = []
-    dones = []
-    fresh_qvals = []
+    for start_ind, stop_ind in zip(split_inds, split_inds[1:]):
+        RUN_LOGGER.debug(f"Training Batch: {start_ind, stop_ind}")
+        samples_slice = fresh_samples[start_ind:stop_ind]
 
-    "Make lists"
-    for env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done, qvals in fresh_samples:
-        envs_inds.append(env_state_ind)
-        if done:
-            envs_inds_fut.append(env_state_ind)
-            # envs_inds_fut.append(None)
-        else:
-            envs_inds_fut.append(env_state_ind_fut)
-        states.append(agent_state)
-        states_fut.append(agent_state_fut)
-        actions.append(act)
-        rewards.append(rew)
-        dones.append(done)
-        fresh_qvals.append(qvals)
+        envs_inds = []
+        envs_inds_fut = []
+        states = []
+        states_fut = []
+        actions = []
+        rewards = []
+        dones = []
+        fresh_qvals = []
 
-    states = np.array(states)
-    states_fut = np.array(states_fut)
-    actions = np.array(actions)
-    rewards = np.array(actions)
-    dones = np.array(dones)
-    fresh_qvals = np.array(fresh_qvals)
+        "Make lists"
+        for env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done, qvals in samples_slice:
+            envs_inds.append(env_state_ind)
+            if done:
+                envs_inds_fut.append(env_state_ind)
+                states_fut.append(agent_state)
+                # envs_inds_fut.append(None)
+            else:
+                envs_inds_fut.append(env_state_ind_fut)
+                states_fut.append(agent_state_fut)
 
-    "Old States"
-    # _wal, _st = np.array(old_states, dtype=object).T
-    # _wal, _st = np.vstack(_wal), np.stack(_st)
+            states.append(agent_state)
+            actions.append(act)
+            rewards.append(rew)
+            dones.append(done)
+            fresh_qvals.append(qvals)
 
-    # q_vals_to_train = mod.predict([_wal, _st])
+        states = np.array(states)
+        states_fut = np.array(states_fut)
+        actions = np.array(actions)
+        rewards = np.array(actions)
+        dones = np.array(dones)
+        fresh_qvals = np.array(fresh_qvals)
 
-    "Future Q"
-    # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
-    # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
-    envs_states_arr_fut = env_data_2d[envs_inds_fut]
-    envs_states_arr = env_data_2d[envs_inds]
+        "Old States"
+        # _wal, _st = np.array(old_states, dtype=object).T
+        # _wal, _st = np.vstack(_wal), np.stack(_st)
 
-    # print(f"Train samples: {len(fresh_samples)}")
-    # print(f"Data shape, {env_data_2d.shape}")
-    # print("Env state predict shape:", envs_states_arr_fut.shape)
-    # print(f"States: {states_fut.shape}")
+        # q_vals_to_train = mod.predict([_wal, _st])
 
-    max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
+        "Future Q"
+        # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
+        # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
+        envs_states_arr_fut = env_data_2d[envs_inds_fut]
+        envs_states_arr = env_data_2d[envs_inds]
 
-    for fresh_qrow, max_q, act, rew, done in zip(fresh_qvals, max_future_argq, actions, rewards, dones):
-        if done:
-            # targ = rew
-            fresh_qrow[2] = rew
-        else:
-            targ = rew + discount * max_q * int(not done)
-            fresh_qrow[act] = targ
-        # print(f"{row}, {act}, rew:{rew:8.3f},  maxq:{max_q:6.2f}, r+g*max:{targ:5.2f}, {done}")
+        max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
 
-    "Reinforce"
-    time_pretrain = time.time()
-    history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True, batch_size=mini_batchsize,
-                         verbose=False)
+        for fresh_qrow, max_q, act, rew, done in zip(fresh_qvals, max_future_argq, actions, rewards,
+                                                     dones):
+            if done:
+                # targ = rew
+                fresh_qrow[2] = rew
+            else:
+                targ = rew + discount * max_q * int(not done)
+                fresh_qrow[act] = targ
+            # print(f"{row}, {act}, rew:{rew:8.3f},  maxq:{max_q:6.2f}, r+g*max:{targ:5.2f}, {done}")
 
-    timeend = time.time()
-    RUN_LOGGER.info(
-            f"Trained in: {timeend - time0:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
-    return history_ob
+        "Reinforce"
+        time_pretrain = time.time()
+        history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True,
+                             batch_size=mini_batchsize,
+                             verbose=False)
+
+        timeend = time.time()
+        RUN_LOGGER.info(
+                f"Trained in: {timeend - time0:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
+
+        losses.append(history_ob.history['loss'])
+    return losses
 
 
 def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
@@ -464,7 +477,7 @@ if __name__ == "__main__":
     time_wind = 60
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:100, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:5000, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
