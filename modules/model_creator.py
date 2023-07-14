@@ -270,11 +270,11 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
-    for arch_num in [1, 2, 3, 6]:
+    for arch_num in [2, 6]:
         for loss in ['mse', 'mae']:
             for nodes in [300, 500]:
-                for batch in [1000]:
-                    for lr in [1e-3, 1e-4]:
+                for batch in [2000]:
+                    for lr in [1e-4, 1e-5]:
                         arch = ArchRegister.funcs[arch_num]
                         # model = None
                         model = arch(
@@ -307,7 +307,9 @@ if __name__ == "__main__":
     reward_fn = 1
 
     # arch_1(1, 1, 1, 1, compile=False)
-    for i, compiled_model, (arch_i, loss, nodes, batch, lr) in grid_models_generator(time_feats, time_window, float_f,
+    for i, compiled_model, (arch_i, loss, nodes, batch, lr) in grid_models_generator(time_feats,
+                                                                                     time_window,
+                                                                                     float_f,
                                                                                      out_size):
         print(i, arch_i, loss, nodes, batch, lr)
         naming = NamingClass(

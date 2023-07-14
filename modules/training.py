@@ -14,6 +14,7 @@ from common_settings import ITERATION, path_data_clean_folder, path_models
 import logger
 from reward_functions import RewardStore
 from yasiu_native.time import measure_real_time_decorator
+import pandas as pd
 
 
 RUN_LOGGER = logger.logger
@@ -84,7 +85,7 @@ class ModelMemory(AgentsMemory):
         return f"ModelMemory (Size 6 lists each: {len(self.memory)})"
 
 
-def get_eps(n, epoch_max, repeat=8, eps_power=2.4, max_explore=0.8):
+def get_eps(n, epoch_max, repeat=5, eps_power=3, max_explore=0.8):
     # f2 = 1 / repeat
     val = (1 - (np.mod(n / epoch_max, 1 / repeat) * repeat) ** eps_power) * max_explore
     return val
@@ -93,8 +94,8 @@ def get_eps(n, epoch_max, repeat=8, eps_power=2.4, max_explore=0.8):
 def train_qmodel(
         model_keras: keras.Model, naming_ob: NamingClass,
         datalist_2dsequences_ordered_train, price_col_ind,
-        fulltrain_ntimes=5000,
-        agents_n=50,
+        fulltrain_ntimes=1000,
+        agents_n=200,
         session_size=3600,
 
         allow_train=True, fresh_memory: ModelMemory = None,
@@ -126,9 +127,15 @@ def train_qmodel(
     # print(normed_data)
     # print(normed_data.shape)
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
-    os.makedirs(path_this_model_folder, exist_ok=True)
-    # print(f"Model folder: {path_this_model_folder}")
 
+    os.makedirs(path_this_model_folder, exist_ok=True)
+    os.makedirs(os.path.join(path_this_model_folder + "data"), exist_ok=True)
+
+    if os.path.isfile(path_this_model_folder + "weights.keras"):
+        RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
+        model_keras.load_weights(path_this_model_folder + "weights.keras")
+    else:
+        RUN_LOGGER.info("Not loading model.")
     if fresh_memory is None:
         # memory = deque(maxlen=300_000)
         # fresh_memory = AgentsMemory()
@@ -146,6 +153,8 @@ def train_qmodel(
     reward_fun = RewardStore.get(reward_f_num)
 
     out_size = int(naming_ob.outsize)
+    qv_dataframe = pd.DataFrame(columns=['eps', 'sess_i', 'sample_n', 'buy', 'idle', 'sell'])
+    session_dataframe = pd.DataFrame(columns=['eps', 'session_num', 'ind_start', 'ind_end', 'gain'])
 
     LOOP_TIMES = []
 
@@ -211,10 +220,13 @@ def train_qmodel(
 
             "MOVE TO IF BELOW"
             # print("Discrete shape", agents_discrete_states.shape)
-            q_vals = model_keras.predict([timesegment_stacked, agents_discrete_states], verbose=False)
             # print(f"Predicted: {q_vals}")
             # print(q_vals.shape)
 
+            q_vals = model_keras.predict(
+                    [timesegment_stacked, agents_discrete_states],
+                    verbose=False
+            )
             "Select Action"
             if allow_train and session_eps > 0 and session_eps > np.random.random():
                 "Random Action"
@@ -223,9 +235,9 @@ def train_qmodel(
             #     actions = np.random.randint(0, 3, agents_n)
             else:
                 actions = np.argmax(q_vals, axis=-1)
-
-            if not allow_train:
-                QHISTORY.append(q_vals.ravel())
+                # QHISTORY.append(q_vals.ravel())
+                for qv in q_vals:
+                    qv_dataframe.loc[len(qv_dataframe)] = session_eps, i_train_sess, i_sample, *qv
 
             # last_price = prices[x]
             rewards = []
@@ -272,20 +284,23 @@ def train_qmodel(
 
         gain = hidden_states[:, 0] - hidden_states[:, 1]
         # RUN_LOGGER.debug(f"End gains: {gain}")
+        for g in gain:
+            session_dataframe.loc[
+                len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
         DEBUG_LOGGER.debug(hidden_states)
         DEBUG_LOGGER.debug(f"End gains rel: {(gain / hidden_states[:, 1]).reshape(-1, 1)}")
         # RUN_LOGGER.debug(f"End cargo: {hidden_states[:, 2]}")
 
         "Session Training"
         if allow_train:
-            losses = deep_q_reinforce(
+            loss = deep_q_reinforce(
                     model_keras, fresh_memory,
                     discount=discount,
                     env_data_2d=datalist_2dsequences_ordered_train,
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
-            append_data_to_file(losses, path_this_model_folder, "hist_loss.npy", axis=1)
+            append_data_to_file([loss], path_this_model_folder, "hist_loss.npy")
 
         "RESOLVE END SCORE"
 
@@ -297,19 +312,35 @@ def train_qmodel(
         RUN_LOGGER.info(
                 f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
 
-        if allow_train:
+        if allow_train and not i_train_sess % 10:
             model_keras.save_weights(path_this_model_folder + "weights.keras")
             RUN_LOGGER.info(f"Saved weights: {naming_ob}")
+            save_csv_locked(session_dataframe,
+                            os.path.join(path_this_model_folder, "data", "session.csv"))
+            save_csv_locked(qv_dataframe, os.path.join(path_this_model_folder, "data", "qvals.csv"))
 
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")
         RUN_LOGGER.info(f"Saved weights: {naming_ob}")
+        save_csv_locked(session_dataframe,
+                        os.path.join(path_this_model_folder, "data", "session.csv"))
+        save_csv_locked(qv_dataframe, os.path.join(path_this_model_folder, "data", "qvals.csv"))
 
     append_data_to_file(LOOP_TIMES, path_this_model_folder, "hist_times.npy")
     DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
     RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     # return history, best, best_all
+
+
+def save_csv_locked(df, path):
+    while True:
+        try:
+            df.to_csv(path)
+            break
+        except PermissionError as er:
+            RUN_LOGGER.warn(f"Waiting for file access ({path}): {er}")
+            time.sleep(2)
 
 
 def deep_q_reinforce(
@@ -326,7 +357,7 @@ def deep_q_reinforce(
     fresh_samples = fresh_mem.random_samples(0.99)
     RUN_LOGGER.debug(f"Samples amount: {len(fresh_samples)}")
 
-    split_inds = get_splits(len(fresh_samples), mini_batchsize * 30)
+    split_inds = get_splits(len(fresh_samples), 50000)
 
     losses = []
     time_f_start = time.time()
@@ -406,7 +437,7 @@ def deep_q_reinforce(
         losses.append(history_ob.history['loss'])
     timeend = time.time()
     RUN_LOGGER.info(f"Full training took : {timeend - time_f_start :>6.3f}s")
-    return losses
+    return np.mean(losses)
 
 
 # @measure_real_time_decorator
@@ -508,12 +539,6 @@ if __name__ == "__main__":
             import traceback
 
 
-            # print(exc)
-            # print("===")
-            # traceback.print_exc(e)
-            # print("===")
-            # tr = traceback.extract_tb(exc.__traceback__)
-            # print(f"TR: {tr}")
             "PRINT TO SYS"
             RUN_LOGGER.error(exc, exc_info=True)
             # print(exc.__traceback__.msg)
