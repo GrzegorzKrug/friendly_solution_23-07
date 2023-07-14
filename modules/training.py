@@ -2,15 +2,21 @@ import numpy as np
 
 import time
 import keras
+import traceback
+import sys
 import os
 
 from random import sample
 from common_functions import NamingClass
-from modules.actors import initialize_agents, resolve_actions
+from actors import initialize_agents, resolve_actions
 
-from modules.common_settings import ITERATION, path_data_clean_folder, path_models
+from common_settings import ITERATION, path_data_clean_folder, path_models
+import logger
 from reward_functions import RewardStore
 from yasiu_native.time import measure_real_time_decorator
+
+
+RUN_LOGGER = logger.logger
 
 
 class AgentsMemory:
@@ -108,8 +114,11 @@ def train_qmodel(
         stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
 ):
+    RUN_LOGGER.debug(
+            f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
     # N_SAMPLES = (data_list_2darr.shape[0] - time_frame)
     N_SAMPLES = len(datalist_2dsequences_ordered_train)
+    RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
     # print(normed_data)
     # print(normed_data.shape)
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
@@ -135,14 +144,14 @@ def train_qmodel(
     # QHISTORY = []  # Qvals to plot histogram
     # history = []
     reward_fun = RewardStore.get(reward_f_num)
-    print(f"Reward: {reward_fun}")
+    # print(f"Reward: {reward_fun}")
 
     out_size = int(naming_ob.outsize)
 
     LOOP_TIMES = []
 
     for i_train_sess in range(fulltrain_ntimes):
-        print(f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} : {naming_ob.path}")
+        RUN_LOGGER.debug(f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} : {naming_ob.path}")
         starttime = time.time()
         "Clone model if step training"
         # "Clone model and set weights"
@@ -182,12 +191,13 @@ def train_qmodel(
         "Actions:"
         "0, 1, 2"
         "Sell, Pass, Buy"
-        for i_sample in range(N_SAMPLES - 1):
+        t0_walking = time.time()
+        for i_sample in range(N_SAMPLES):
             done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
-            # print(f"isample: {i_sample}, segm shape:{timesegment_2d.shape}")
+            # RUN_LOGGER.debug(f"isample: {i_sample}")
 
             if done_session:
                 future_segment3d = None
@@ -252,6 +262,9 @@ def train_qmodel(
             agents_discrete_states = new_states
             hidden_states = new_hidden_states
 
+        tend_walking = time.time()
+        RUN_LOGGER.info(
+                f"Walking through data took: {tend_walking - t0_walking:>5.4f}s. {(tend_walking - t0_walking) / N_SAMPLES:>5.5f}s per step")
         # if allow_train:
         #     if time_out_time and time.time() > time_out_time:
         #         print(f"Timeout, training longer than {timeout / 60:4.3f} min")
@@ -265,6 +278,7 @@ def train_qmodel(
                     env_data_2d=datalist_2dsequences_ordered_train,
                     mini_batchsize=int(naming_ob.batch),
             )
+            # L(history.history['loss'])
             append_data_to_file(history.history['loss'], path_this_model_folder, "hist_loss.npy")
 
         "RESOLVE END SCORE"
@@ -272,14 +286,16 @@ def train_qmodel(
         endtime = time.time()
         duration = endtime - starttime
         LOOP_TIMES.append(duration)
+        RUN_LOGGER.info(
+                f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
 
-        if allow_train and not i_train_sess % 10:
+        if allow_train:
             model_keras.save_weights(path_this_model_folder + "weights.keras")
-            print("Saved model")
+            RUN_LOGGER.info(f"Saved weights: {naming_ob}")
 
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")
-        print("Saved model")
+        RUN_LOGGER.info(f"Saved weights: {naming_ob}")
 
     append_data_to_file(LOOP_TIMES, path_this_model_folder, "hist_times.npy")
     print(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
@@ -291,12 +307,14 @@ def append_data_to_file(values, path_this_model_folder, file_name):
     if os.path.isfile(path_this_model_folder + file_name):
         old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
         full_hist = np.concatenate([old_hist, values], axis=0)
+        RUN_LOGGER.debug(f"Saved data to: {file_name}")
     else:
         full_hist = values
+        RUN_LOGGER.debug(f"Started saving data to: {file_name}")
     np.save(path_this_model_folder + file_name, full_hist)
 
 
-@measure_real_time_decorator
+# @measure_real_time_decorator
 def deep_q_reinforce(
         mod, fresh_mem,
         discount=0.9,
@@ -307,7 +325,10 @@ def deep_q_reinforce(
     #         fresh_mem, old_memory, big_batch, old_mem_fraction,
     #         min_batches=mini_batch)
     # fresh_mem: AgentsMemory
-    fresh_samples = fresh_mem.random_samples(0.8)
+    RUN_LOGGER.debug(f"Trying to reinforce. MiniBatch:{mini_batchsize}. Dc: {discount}")
+    fresh_samples = fresh_mem.random_samples(0.99)
+    RUN_LOGGER.debug(f"Samples amount: {len(fresh_samples)}")
+    time0 = time.time()
     # fresh_samples = np.array(fresh_mem)
     # print(fresh_samples.shape)
 
@@ -324,7 +345,11 @@ def deep_q_reinforce(
     "Make lists"
     for env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done, qvals in fresh_samples:
         envs_inds.append(env_state_ind)
-        envs_inds_fut.append(env_state_ind_fut)
+        if done:
+            envs_inds_fut.append(env_state_ind)
+            # envs_inds_fut.append(None)
+        else:
+            envs_inds_fut.append(env_state_ind_fut)
         states.append(agent_state)
         states_fut.append(agent_state_fut)
         actions.append(act)
@@ -351,20 +376,30 @@ def deep_q_reinforce(
     envs_states_arr_fut = env_data_2d[envs_inds_fut]
     envs_states_arr = env_data_2d[envs_inds]
 
-    print(f"Train samples: {len(fresh_samples)}")
-    print(f"Data shape, {env_data_2d.shape}")
-    print("Env state predict shape:", envs_states_arr_fut.shape)
-    print(f"States: {states_fut.shape}")
+    # print(f"Train samples: {len(fresh_samples)}")
+    # print(f"Data shape, {env_data_2d.shape}")
+    # print("Env state predict shape:", envs_states_arr_fut.shape)
+    # print(f"States: {states_fut.shape}")
 
     max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
 
     for fresh_qrow, max_q, act, rew, done in zip(fresh_qvals, max_future_argq, actions, rewards, dones):
-        targ = rew + discount * max_q * int(not done)
+        if done:
+            # targ = rew
+            fresh_qrow[2] = rew
+        else:
+            targ = rew + discount * max_q * int(not done)
+            fresh_qrow[act] = targ
         # print(f"{row}, {act}, rew:{rew:8.3f},  maxq:{max_q:6.2f}, r+g*max:{targ:5.2f}, {done}")
-        fresh_qrow[act] = targ
 
     "Reinforce"
-    history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True, batch_size=mini_batchsize)
+    time_pretrain = time.time()
+    history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True, batch_size=mini_batchsize,
+                         verbose=False)
+
+    timeend = time.time()
+    RUN_LOGGER.info(
+            f"Trained in: {timeend - time0:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
     return history_ob
 
 
@@ -415,6 +450,7 @@ if __name__ == "__main__":
     # empty_ref_list[1].append(2)
     # print(empty_ref_list)
     # print(initial_states)
+    RUN_LOGGER.info("=== NEW TRAINING ===")
 
     "LOAD Data"
     columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
@@ -428,7 +464,7 @@ if __name__ == "__main__":
     time_wind = 60
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:100000, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:100, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -438,6 +474,8 @@ if __name__ == "__main__":
     # _, model, (arch_num, loss, nodes, batch, lr) = next(gen1)
 
     for counter, model, (arch_num, loss, nodes, batch, lr) in gen1:
+        RUN_LOGGER.info(
+                f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
         naming_ob = NamingClass(
                 arch_num, ITERATION,
                 time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
@@ -446,7 +484,23 @@ if __name__ == "__main__":
                 learning_rate=lr, loss=loss, batch=batch
         )
 
-        train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id)
+        try:
+            train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id)
+        except Exception as exc:
+            import traceback
+
+
+            # print(exc)
+            # print("===")
+            # traceback.print_exc(e)
+            # print("===")
+            # tr = traceback.extract_tb(exc.__traceback__)
+            # print(f"TR: {tr}")
+            "PRINT TO SYS"
+            RUN_LOGGER.error(exc, exc_info=True)
+            # print(exc.__traceback__.msg)
+
+            break
     # memory = AgentsMemory()
     # memory.add_sample(1, 2, 3, 4, 5, 6, 7, 8)
     #

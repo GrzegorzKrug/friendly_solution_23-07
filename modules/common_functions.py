@@ -74,12 +74,12 @@ class NamingClass:
         text += f"{self.PAR_SEP}tw{self.VAL_SEP}{self.time_window}"
         text += f"{self.PAR_SEP}ff{self.VAL_SEP}{self.float_feats}"
 
-        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.outsize}"
+        text += f"{self.PAR_SEP}ou{self.VAL_SEP}{self.outsize}"
         text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.node_size}"
 
-        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.learning_rate}"
-        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.loss}"
-        text += f"{self.PAR_SEP}no{self.VAL_SEP}{self.batch}"
+        text += f"{self.PAR_SEP}lr{self.VAL_SEP}{self.learning_rate}"
+        text += f"{self.PAR_SEP}ls{self.VAL_SEP}{self.loss}"
+        text += f"{self.PAR_SEP}bt{self.VAL_SEP}{self.batch}"
 
         text += f"{self.PAR_SEP}op{self.VAL_SEP}{self.optimizer}"
         text += f"{self.PAR_SEP}rf{self.VAL_SEP}{self.reward_fnum}"
