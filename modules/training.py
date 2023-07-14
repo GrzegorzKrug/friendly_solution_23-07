@@ -95,7 +95,7 @@ def train_qmodel(
         model_keras: keras.Model, naming_ob: NamingClass,
         datalist_2dsequences_ordered_train, price_col_ind,
         fulltrain_ntimes=1000,
-        agents_n=200,
+        agents_n=10,
         session_size=3600,
 
         allow_train=True, fresh_memory: ModelMemory = None,
