@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from common_settings import path_data_clean_folder
 
-from modules.common_functions import to_sequences_forward
+from common_functions import to_sequences_forward
 
 
 folder_danych = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dane", "")) + os.path.sep
