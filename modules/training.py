@@ -84,7 +84,7 @@ class ModelMemory(AgentsMemory):
         return f"ModelMemory (Size 6 lists each: {len(self.memory)})"
 
 
-def get_eps(n, epoch_max, repeat=8, eps_power=0.4, max_explore=0.8):
+def get_eps(n, epoch_max, repeat=8, eps_power=2.4, max_explore=0.8):
     # f2 = 1 / repeat
     val = (1 - (np.mod(n / epoch_max, 1 / repeat) * repeat) ** eps_power) * max_explore
     return val
