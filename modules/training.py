@@ -84,7 +84,7 @@ class ModelMemory(AgentsMemory):
         return f"ModelMemory (Size 6 lists each: {len(self.memory)})"
 
 
-def get_eps(n, epoch_max, repeat=5, eps_power=0.4, max_explore=0.8):
+def get_eps(n, epoch_max, repeat=8, eps_power=0.4, max_explore=0.8):
     # f2 = 1 / repeat
     val = (1 - (np.mod(n / epoch_max, 1 / repeat) * repeat) ** eps_power) * max_explore
     return val
@@ -93,7 +93,9 @@ def get_eps(n, epoch_max, repeat=5, eps_power=0.4, max_explore=0.8):
 def train_qmodel(
         model_keras: keras.Model, naming_ob: NamingClass,
         datalist_2dsequences_ordered_train, price_col_ind,
-        fulltrain_ntimes=1000, agents_n=50,
+        fulltrain_ntimes=5000,
+        agents_n=50,
+        session_size=3600,
 
         allow_train=True, fresh_memory: ModelMemory = None,
 
@@ -141,25 +143,23 @@ def train_qmodel(
         raise ValueError(
                 f"Too few samples! {N_SAMPLES}, shape:{datalist_2dsequences_ordered_train.shape}")
 
-    # rew_func = RewardStore.get(reward_f_num)
-
-    # QHISTORY = []  # Qvals to plot histogram
-    # history = []
     reward_fun = RewardStore.get(reward_f_num)
-    # print(f"Reward: {reward_fun}")
 
     out_size = int(naming_ob.outsize)
 
     LOOP_TIMES = []
 
     for i_train_sess in range(fulltrain_ntimes):
-        RUN_LOGGER.debug(f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} : {naming_ob.path}")
+        last_start = N_SAMPLES - session_size
+        # print(f"Last start: {last_start} for: {N_SAMPLES} of size: {session_size}")
+        ses_start = np.random.randint(0, last_start)
+        ses_end = ses_start + session_size
+
+        RUN_LOGGER.debug(
+                f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} : {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {session_size}")
         starttime = time.time()
         "Clone model if step training"
-        # "Clone model and set weights"
-        # stable_model = tf.keras.models.clone_model(mod)
-        # stable_model.set_weights(mod.get_weights())
-        stable_model = model_keras
+        # stable_model = model_keras.copy()
 
         # eps_cycle = EPS_CYCLE + np.random.randint(0, 100)
         # eps_offset = np.random.randint(0, 50)
@@ -195,7 +195,7 @@ def train_qmodel(
         "0, 1, 2"
         "Sell, Pass, Buy"
         t0_walking = time.time()
-        for i_sample in range(N_SAMPLES):
+        for i_sample in range(ses_start, ses_end):
             done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
@@ -211,7 +211,7 @@ def train_qmodel(
 
             "MOVE TO IF BELOW"
             # print("Discrete shape", agents_discrete_states.shape)
-            q_vals = stable_model.predict([timesegment_stacked, agents_discrete_states], verbose=False)
+            q_vals = model_keras.predict([timesegment_stacked, agents_discrete_states], verbose=False)
             # print(f"Predicted: {q_vals}")
             # print(q_vals.shape)
 
@@ -312,18 +312,6 @@ def train_qmodel(
     # return history, best, best_all
 
 
-def append_data_to_file(values, path_this_model_folder, file_name, axis=0):
-    if os.path.isfile(path_this_model_folder + file_name):
-        old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
-        full_hist = np.concatenate([old_hist, values], axis=axis)
-        RUN_LOGGER.debug(f"Saved data to: {file_name}")
-    else:
-        full_hist = values
-        RUN_LOGGER.debug(f"Started saving data to: {file_name}")
-    np.save(path_this_model_folder + file_name, full_hist)
-
-
-# @measure_real_time_decorator
 def deep_q_reinforce(
         mod, fresh_mem,
         discount=0.9,
@@ -337,11 +325,14 @@ def deep_q_reinforce(
     RUN_LOGGER.debug(f"Trying to reinforce. MiniBatch:{mini_batchsize}. Dc: {discount}")
     fresh_samples = fresh_mem.random_samples(0.99)
     RUN_LOGGER.debug(f"Samples amount: {len(fresh_samples)}")
-    time0 = time.time()
-    split_inds = get_splits(len(fresh_samples), mini_batchsize * 20)
+
+    split_inds = get_splits(len(fresh_samples), mini_batchsize * 30)
+
     losses = []
+    time_f_start = time.time()
 
     for start_ind, stop_ind in zip(split_inds, split_inds[1:]):
+        batch_time = time.time()
         RUN_LOGGER.debug(f"Training Batch: {start_ind, stop_ind}")
         samples_slice = fresh_samples[start_ind:stop_ind]
 
@@ -409,11 +400,25 @@ def deep_q_reinforce(
                              verbose=False)
 
         timeend = time.time()
-        RUN_LOGGER.info(
-                f"Trained in: {timeend - time0:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
+        RUN_LOGGER.debug(
+                f"Trained in: {timeend - batch_time:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
 
         losses.append(history_ob.history['loss'])
+    timeend = time.time()
+    RUN_LOGGER.info(f"Full training took : {timeend - time_f_start :>6.3f}s")
     return losses
+
+
+# @measure_real_time_decorator
+def append_data_to_file(values, path_this_model_folder, file_name, axis=0):
+    if os.path.isfile(path_this_model_folder + file_name):
+        old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
+        full_hist = np.concatenate([old_hist, values], axis=axis)
+        RUN_LOGGER.debug(f"Saved data to: {file_name}")
+    else:
+        full_hist = values
+        RUN_LOGGER.debug(f"Started saving data to: {file_name}")
+    np.save(path_this_model_folder + file_name, full_hist)
 
 
 def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
@@ -477,7 +482,7 @@ if __name__ == "__main__":
     time_wind = 60
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:5000, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -498,7 +503,7 @@ if __name__ == "__main__":
         )
 
         try:
-            train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id)
+            train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id, session_size=3600)
         except Exception as exc:
             import traceback
 
