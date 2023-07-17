@@ -147,18 +147,6 @@ def interp_1d_sub(tm_uni, tm, vals):
     return vals_uni
 
 
-if __name__ == "__main__":
-    arr = np.array([
-            [0, 0, 0, 0],
-            [0.3, 0.3, 0.3, 0.3],
-            [1, 10, 20, 30],
-            [3, 30, 60, 90],
-            [7, 70, 140, 210],
-    ]
-    )
-    interp_2d(arr)
-
-
 def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
     x = []
     y = []
@@ -198,3 +186,45 @@ def get_splits(data_size=5000, split_size=100):
         inds.append(data_size + 1)
 
     return inds
+
+
+def get_eps(n, epoch_max, repeat=2, eps_power=1.4, max_explore=0.8):
+    """
+    Works only with matching periods, last period may be be different if not
+    Condition: epoch_max % repeat == 0
+
+    Args:
+        n:
+        epoch_max:
+        repeat:
+        eps_power:
+        max_explore:
+
+    Returns:
+
+    """
+    "N is -1 smaller than epoch_max"
+    if n >= epoch_max:
+        raise ValueError("N can not be equal to epoch max!")
+    disc_step = (epoch_max) // repeat
+
+    if epoch_max <= 25:
+        val = ((1 - n / (epoch_max - 1)) ** eps_power) * max_explore
+    else:
+        return (1 - np.mod(n, disc_step) / (disc_step - 1)) ** eps_power * max_explore
+    return val
+
+
+if __name__ == "__main__":
+    M = 50
+    X = np.arange(M)
+
+    for i in [1, 49, 50, 51, 99]:
+        print(i, f"{get_eps(i, 100, repeat=2):>4.4f}")
+
+    Y = [get_eps(x, M, repeat=5) for x in X]
+    Y = [get_eps(x, M, repeat=25, eps_power=1, max_explore=1) for x in X]
+    plt.plot(X, Y)
+    plt.grid()
+    plt.tight_layout()
+    plt.show()
