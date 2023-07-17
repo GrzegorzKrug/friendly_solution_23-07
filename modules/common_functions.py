@@ -188,7 +188,7 @@ def get_splits(data_size=5000, split_size=100):
     return inds
 
 
-def get_eps(n, epoch_max, repeat=2, eps_power=1.4, max_explore=0.8):
+def get_eps(n, epoch_max, repeat=5, eps_power=1.4, max_explore=0.8):
     """
     Works only with matching periods, last period may be be different if not
     Condition: epoch_max % repeat == 0

@@ -6,7 +6,7 @@ import os
 import datetime
 import logger
 
-from random import sample
+from random import sample, shuffle
 from common_functions import NamingClass, get_splits
 from actors import initialize_agents, resolve_actions
 
@@ -169,8 +169,8 @@ def train_qmodel(
 
         # Optional
         max_eps=0.8, override_eps=None,
-        remeber_fresh_fraction=0.4,
-        train_from_oldmem_fraction=0.2,
+        remember_fresh_fraction=0.4,
+        train_from_oldmem_fraction=0.3,
         old_memory_size=300_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
@@ -380,7 +380,7 @@ def train_qmodel(
             # L(history.history['loss'])
             loss_file.write(f"{i_train_sess},{loss}\n")
 
-            k = int(remeber_fresh_fraction * len(fresh_memory))
+            k = int(remember_fresh_fraction * len(fresh_memory))
             model_memory.migrate(sample(fresh_memory.memory, k))
 
             k = int(train_from_oldmem_fraction * len(model_memory))
@@ -439,6 +439,7 @@ def deep_q_reinforce_fresh(
             f"Trying to reinforce (fresh). MiniBatch:{mini_batchsize}. Dc: {discount}, samples: {len(fresh_samples)}")
 
     split_inds = get_splits(len(fresh_samples), 50000)
+    shuffle(fresh_samples)
 
     losses = []
     time_f_start = time.time()
@@ -531,6 +532,11 @@ def deep_q_reinforce_oldmem(
     #         fresh_mem, old_memory, big_batch, old_mem_fraction,
     #         min_batches=mini_batch)
     # fresh_mem: AgentsMemory
+    # print("Shuffling:")
+    # print(old_samples[:5])
+    shuffle(old_samples)
+    # print(old_samples[:5])
+    # print(f"Shuffled samples: {old_samples}")
     RUN_LOGGER.debug(
             f"Trying to reinforce (old). MiniBatch:{mini_batchsize}. Dc: {discount}, samples: {len(old_samples)}")
     # old_samples = old_memory.random_samples(0.99)
