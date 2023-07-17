@@ -4,13 +4,13 @@ import time
 import keras
 import os
 import datetime
+import logger
 
 from random import sample
 from common_functions import NamingClass, get_splits
 from actors import initialize_agents, resolve_actions
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
-import logger
 from modules.common_functions import get_eps
 from reward_functions import RewardStore
 
@@ -21,6 +21,14 @@ from common_functions import to_sequences_forward
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
+
+import traceback
+import multiprocessing
+
+import tensorflow as tf
+
+import concurrent
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 # session_dataframe.loc[
@@ -161,8 +169,8 @@ def train_qmodel(
 
         # Optional
         max_eps=0.8, override_eps=None,
-        remeber_fresh=0.4,
-        train_from_old=0.2,
+        remeber_fresh_fraction=0.4,
+        train_from_oldmem_fraction=0.2,
         old_memory_size=300_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
@@ -173,9 +181,9 @@ def train_qmodel(
         # save_qval_dist=False,
 
         # PARAMS ==============
-        time_window_size=10,
-        stock_price_multiplier=0.5,
-        stock_ammount_in_bool=True,
+        # time_window_size=10,
+        # stock_price_multiplier=0.5,
+        # stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
 
         # FILE SAVERS
@@ -363,14 +371,28 @@ def train_qmodel(
 
         "Session Training"
         if allow_train:
-            loss = deep_q_reinforce(
-                    model_keras, fresh_memory,
+            loss = deep_q_reinforce_fresh(
+                    model_keras, fresh_memory.memory,
                     discount=discount,
                     env_data_2d=datalist_2dsequences_ordered_train,
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
             loss_file.write(f"{i_train_sess},{loss}\n")
+
+            k = int(remeber_fresh_fraction * len(fresh_memory))
+            model_memory.migrate(sample(fresh_memory.memory, k))
+
+            k = int(train_from_oldmem_fraction * len(model_memory))
+            if k > 200:
+                old_samples = sample(model_memory.memory, k)
+                loss = deep_q_reinforce_oldmem(
+                        model_keras, old_samples,
+                        discount=discount,
+                        env_data_2d=datalist_2dsequences_ordered_train,
+                        mini_batchsize=int(naming_ob.batch),
+                )
+                loss_file.write(f"{i_train_sess},{loss}\n")
 
         "RESOLVE END SCORE"
 
@@ -380,8 +402,6 @@ def train_qmodel(
         loop_sum_text = f"This loop took: {duration:>5.4f}s. Fresh mem: {len(fresh_memory)}, Total mem: {len(model_memory)}"
         DEBUG_LOGGER.info(loop_sum_text)
         RUN_LOGGER.info(loop_sum_text)
-
-        model_memory.migrate(fresh_memory.memory)
 
         if allow_train and not i_train_sess % 10:
             model_keras.save_weights(path_this_model_folder + "weights.keras")
@@ -409,19 +429,14 @@ def save_csv_locked(df, path):
             time.sleep(2)
 
 
-def deep_q_reinforce(
-        mod, fresh_mem,
+def deep_q_reinforce_fresh(
+        mod, fresh_samples,
         discount=0.9,
         env_data_2d=None,
         mini_batchsize=500,
 ):
-    # batch_gen = get_big_batch(
-    #         fresh_mem, old_memory, big_batch, old_mem_fraction,
-    #         min_batches=mini_batch)
-    # fresh_mem: AgentsMemory
-    RUN_LOGGER.debug(f"Trying to reinforce. MiniBatch:{mini_batchsize}. Dc: {discount}")
-    fresh_samples = fresh_mem.random_samples(0.99)
-    RUN_LOGGER.debug(f"Samples amount: {len(fresh_samples)}")
+    RUN_LOGGER.debug(
+            f"Trying to reinforce (fresh). MiniBatch:{mini_batchsize}. Dc: {discount}, samples: {len(fresh_samples)}")
 
     split_inds = get_splits(len(fresh_samples), 50000)
 
@@ -498,11 +513,110 @@ def deep_q_reinforce(
 
         timeend = time.time()
         RUN_LOGGER.debug(
-                f"Trained in: {timeend - batch_time:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
+                f"Trained (fresh) in: {timeend - batch_time:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
 
         losses.append(history_ob.history['loss'])
     timeend = time.time()
-    RUN_LOGGER.info(f"Full training took : {timeend - time_f_start :>6.3f}s")
+    RUN_LOGGER.info(f"Full (fresh) training took : {timeend - time_f_start :>6.3f}s")
+    return np.mean(losses)
+
+
+def deep_q_reinforce_oldmem(
+        mod, old_samples,
+        discount=0.9,
+        env_data_2d=None,
+        mini_batchsize=500,
+):
+    # batch_gen = get_big_batch(
+    #         fresh_mem, old_memory, big_batch, old_mem_fraction,
+    #         min_batches=mini_batch)
+    # fresh_mem: AgentsMemory
+    RUN_LOGGER.debug(
+            f"Trying to reinforce (old). MiniBatch:{mini_batchsize}. Dc: {discount}, samples: {len(old_samples)}")
+    # old_samples = old_memory.random_samples(0.99)
+    # RUN_LOGGER.debug(f"Samples amount: {len(old_samples)}")
+
+    split_inds = get_splits(len(old_samples), 50000)
+
+    losses = []
+    time_f_start = time.time()
+
+    for start_ind, stop_ind in zip(split_inds, split_inds[1:]):
+        batch_time = time.time()
+        RUN_LOGGER.debug(f"Training Batch: {start_ind, stop_ind}")
+        samples_slice = old_samples[start_ind:stop_ind]
+
+        envs_inds = []
+        envs_inds_fut = []
+        states = []
+        states_fut = []
+        actions = []
+        rewards = []
+        dones = []
+
+        "Make lists"
+        for env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done in samples_slice:
+            envs_inds.append(env_state_ind)
+            if done:
+                envs_inds_fut.append(env_state_ind)
+                states_fut.append(agent_state)
+                # envs_inds_fut.append(None)
+            else:
+                envs_inds_fut.append(env_state_ind_fut)
+                states_fut.append(agent_state_fut)
+
+            states.append(agent_state)
+            actions.append(act)
+            rewards.append(rew)
+            dones.append(done)
+
+        states = np.array(states)
+        states_fut = np.array(states_fut)
+        actions = np.array(actions)
+        rewards = np.array(actions)
+        dones = np.array(dones)
+        # fresh_qvals = np.array(fresh_qvals)
+
+
+        "Get arrays from indexes"
+        envs_states_arr_fut = env_data_2d[envs_inds_fut]
+        envs_states_arr = env_data_2d[envs_inds]
+
+        "Old States"
+        # _wal, _st = np.array(old_states, dtype=object).T
+        # _wal, _st = np.vstack(_wal), np.stack(_st)
+        current_qvals = mod.predict([envs_states_arr, states])
+
+        # q_vals_to_train = mod.predict([_wal, _st])
+
+        "Future Q"
+        # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
+        # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
+
+
+        max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
+
+        for fresh_qrow, max_q, act, rew, done in zip(current_qvals, max_future_argq, actions, rewards,
+                                                     dones):
+            if done:
+                fresh_qrow[2] = rew
+            else:
+                targ = rew + discount * max_q * int(not done)
+                fresh_qrow[act] = targ
+
+        "Reinforce"
+        time_pretrain = time.time()
+        history_ob = mod.fit([envs_states_arr, states], current_qvals, shuffle=True,
+                             batch_size=mini_batchsize,
+                             verbose=False)
+
+        timeend = time.time()
+        RUN_LOGGER.debug(
+                f"Training (old) in: {timeend - batch_time:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
+
+        losses.append(history_ob.history['loss'])
+    timeend = time.time()
+    RUN_LOGGER.info(f"Full (old) training took : {timeend - time_f_start :>6.3f}s")
     return np.mean(losses)
 
 
@@ -546,6 +660,52 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
+# def single_model_training_function(data):
+def single_model_training_function(counter, model, params):
+    # gpus = tf.config.list_physical_devices('GPU')
+    # for gpu in gpus:
+    #     tf.config.experimental.set_memory_growth(gpu, True)
+
+    arch_num, loss, nodes, batch, lr = params
+    print(f"started Training:{counter},{params}")
+
+    RUN_LOGGER.info(
+            f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
+    naming_ob = NamingClass(
+            arch_num, ITERATION,
+            time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
+            node_size=nodes,
+
+            learning_rate=lr, loss=loss, batch=batch
+    )
+    try:
+        # for gpu in tf.config.experimental.list_physical_devices("GPU"):
+        #     pass
+        # f"Limitig gpu: {gpu}"
+        # tf.config.experimental.set_memory_growth(gpu, True)
+        print("TRAIN QModel")
+        train_qmodel(
+                model, train_sequences,
+                price_col_ind=price_id,
+                naming_ob=naming_ob,
+                session_size=1500,
+                fulltrain_ntimes=500,
+        )
+    except Exception as exc:
+        "PRINT TO SYS"
+        print(f"EXCEPTION: {exc}")
+        RUN_LOGGER.error(exc, exc_info=True)
+
+    "Clear memory?"
+    del model
+
+
+def dummy_grid_generator():
+    for i in range(35):
+        print(f"Yielding dumy generator: {i}")
+        yield i
+
+
 if __name__ == "__main__":
     RUN_LOGGER.info("=== NEW TRAINING ===")
 
@@ -568,47 +728,86 @@ if __name__ == "__main__":
 
     "Model Grid"
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    # _, model, (arch_num, loss, nodes, batch, lr) = next(gen1)
+    # gen1 = dummy_grid_generator()
+    for data in gen1:
+        single_model_training_function(*data)
 
-    for counter, model, (arch_num, loss, nodes, batch, lr) in gen1:
-        RUN_LOGGER.info(
-                f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
-        naming_ob = NamingClass(
-                arch_num, ITERATION,
-                time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
-                node_size=nodes,
+    # args = list(gen1)
 
-                learning_rate=lr, loss=loss, batch=batch
-        )
-
-        try:
-            train_qmodel(
-                    model, train_sequences,
-                    price_col_ind=price_id,
-                    naming_ob=naming_ob,
-                    session_size=160,
-                    fulltrain_ntimes=4,
-            )
-        except Exception as exc:
-            import traceback
-
-
-            "PRINT TO SYS"
-            RUN_LOGGER.error(exc, exc_info=True)
-            # print(exc.__traceback__.msg)
-
-            break
-        break
-    # memory = AgentsMemory()
-    # memory.add_sample(1, 2, 3, 4, 5, 6, 7, 8)
+    # print(args)
     #
-    # memory.add_batch(*np.random.random((8, 5)))
+    # process_num = 2
+    # que = multiprocessing.Queue(process_num)
+    # pool = multiprocessing.Pool(process_num)
+
+    # pool.map(single_model_training_function, (q,))
+
+
+    # "BROKEN ASS"
+    # # process_list = []
+    # # for data_i, data in enumerate(gen1):
+    # #     print("Starting process")
+    # #     proc = multiprocessing.Process(target=single_model_training_function, args=(data,))
+    # #     proc.start()
+    # #     process_list.append(proc)
+    # #
+    # #     while True:
+    # #         if len(process_list) < process_num:
+    # #             break
+    # #
+    # #         drop_inds = []
+    # #         for i, pr in enumerate(process_list):
+    # #             "If some process is idle. Add data"
+    # #             if not pr.is_alive():
+    # #                 pr.join()
+    # #                 drop_inds.append(i)
+    # #             # print(i, pr.is_alive())
+    # #
+    # #         "From last to first"
+    # #         for di in drop_inds[::-1]:
+    # #             print("Dropping process")
+    # #             process_list.pop(di)
+    # #
+    # #         print("Sleeping 1")
+    # #         time.sleep(1)
+    # #
+    # # for pr in process_list:
+    # #     print("Waiting for Last process")
+    # #     pr.join()
     #
-    # print(memory)
-    # # print(memory.)
-    # samples = memory.random_samples()
-    # # print("Random samples:")
-    # # print(samples)
+    # # for args in gen1:
+    # #     print(args)
+    # #     pass
     #
-    # memory2 = ModelMemory(memory)
-    # print(memory2)
+    # # gpus = tf.config.list_physical_devices('GPU')
+    # # for gpu in gpus:
+    # #     tf.config.experimental.set_memory_growth(gpu, True)
+    #
+    # # Limit GPU memory usage to a fraction
+    # # tf.config.gpu.set_per_process_memory_fraction(0.2)
+    # # tf.config.gpu.set_per_process_memory_growth(False)
+    #
+    # with ProcessPoolExecutor(max_workers=1) as executor:
+    #     process_list = []
+    #     counter = 0
+    #     for data in gen1:
+    #         proc = executor.submit(single_model_training_function, data)
+    #         process_list.append(proc)
+    #         print("Starting process")
+    #         counter += 1
+    #         if counter > 2:
+    #             break
+    #
+    #         # while True
+    #     # proc.e
+    #     #     results.append(proc)
+    #     print("Waiting:")
+    #     result = concurrent.futures.wait(process_list)
+    #     print("Waiting finished.")
+    #
+    #     for f in as_completed(process_list):
+    #         print(f.result())
+    #
+    #     # for res in process_list:
+    #     #     print(res)
+    #     #     res.join()

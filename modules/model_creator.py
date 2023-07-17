@@ -169,8 +169,8 @@ def builder_2pipes(
     Returns:
 
     """
-    time_input = Input(shape=(time_window, time_feats), name="2D Timeseries")
-    float_input = Input(shape=(float_feats,), name="1D Floats")
+    time_input = Input(shape=(time_window, time_feats), )
+    float_input = Input(shape=(float_feats,), )
 
     "Time series LSTM"
     ls_inp = tf.reshape(time_input, (-1, time_window, time_feats))
@@ -225,8 +225,8 @@ def builder_pyramid(
     Returns:
 
     """
-    time_input = Input(shape=(time_window, time_feats), name="2D Timeseries")
-    float_input = Input(shape=(float_feats,), name="1D Floats")
+    time_input = Input(shape=(time_window, time_feats), )
+    float_input = Input(shape=(float_feats,), )
 
     "Time series LSTM"
     ls_inp = tf.reshape(time_input, (-1, time_window, time_feats))
@@ -272,8 +272,8 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
     for arch_num in [2, 6]:
         for loss in ['mse', 'mae']:
-            for nodes in [300, 500]:
-                for batch in [2000]:
+            for nodes in [200, 400]:
+                for batch in [1000, 2000]:
                     for lr in [1e-4, 1e-5]:
                         arch = ArchRegister.funcs[arch_num]
                         # model = None
@@ -282,9 +282,12 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
                                 compile=False
                         )
                         model: keras.Model
+                        # model._init_set_name(f"{counter}-{arch_num}")
+                        # model.name = f"{counter}-{arch_num}"
                         adam = Adam(learning_rate=lr)
                         model.compile(loss=loss, optimizer=adam)
 
+                        print(f"Yielding model: {counter}")
                         yield counter, model, (arch_num, loss, nodes, batch, lr)
                         counter += 1
 
