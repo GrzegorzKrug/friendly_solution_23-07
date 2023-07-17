@@ -42,7 +42,7 @@ class ArchRegister:
     def register(cls, num):
         # @wraps(func)
         def wrapper(func):
-            print(f"Register f: {func.__name__}, {func} at: {num}")
+            # print(f"Register f: {func.__name__}, {func} at: {num}")
             if num in cls.funcs:
                 raise KeyError(f"Function is registred already at num: {num}, ")
             cls.funcs[num] = func
