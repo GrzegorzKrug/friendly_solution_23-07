@@ -11,7 +11,7 @@ from common_functions import NamingClass, get_splits
 from actors import initialize_agents, resolve_actions
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
-from modules.common_functions import get_eps
+from common_functions import get_eps
 from reward_functions import RewardStore
 
 from functools import wraps
