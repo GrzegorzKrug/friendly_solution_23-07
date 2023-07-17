@@ -2,9 +2,8 @@ import numpy as np
 
 import time
 import keras
-import traceback
-import sys
 import os
+import datetime
 
 from random import sample
 from common_functions import NamingClass, get_splits
@@ -12,9 +11,20 @@ from actors import initialize_agents, resolve_actions
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
 import logger
+from modules.common_functions import get_eps
 from reward_functions import RewardStore
+
+from functools import wraps
+from collections import deque
+from model_creator import grid_models_generator
+from common_functions import to_sequences_forward
+
+from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
-import pandas as pd
+
+
+# session_dataframe.loc[
+#     len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
 
 
 RUN_LOGGER = logger.logger
@@ -61,49 +71,99 @@ class AgentsMemory:
     def __str__(self):
         return f"AgentsMemory(Size 6 lists each: {len(self.memory)})"
 
+    def __len__(self):
+        return len(self.memory)
 
-class ModelMemory(AgentsMemory):
-    def __init__(self, agents_mem: AgentsMemory = None):
-        self.memory = []
+
+class ModelMemory:
+    def __init__(self, agents_mem: AgentsMemory = None, maxlen=200000):
+        self.memory = deque(maxlen=maxlen)
+
         if agents_mem:
             self.migrate(agents_mem.memory)
 
     def add_sample(
             self, env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, reward, done,
-
     ):
         self.memory.append((
                 env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, reward, done,
         ))
 
+    @measure_real_time_decorator
     def migrate(self, mem):
         for batch in mem:
             # print(f"Migrating batch: {batch}")
             self.add_sample(*batch[:-1])  # Drop q-vals at end
 
+    # def add_batch(self, *args):
+    #     for batch in zip(*args):
+    #         # print(f"Adding batch: {batch}")
+    #         self.add_sample(*batch)
+
     def __str__(self):
         return f"ModelMemory (Size 6 lists each: {len(self.memory)})"
 
-
-def get_eps(n, epoch_max, repeat=5, eps_power=3, max_explore=0.8):
-    # f2 = 1 / repeat
-    val = (1 - (np.mod(n / epoch_max, 1 / repeat) * repeat) ** eps_power) * max_explore
-    return val
+    def __len__(self):
+        return len(self.memory)
 
 
+def results_decorator(fun):
+    @wraps(fun)
+    def wrapper(*arg, naming_ob=None, **kw):
+        # print(f"Args:{arg}")
+        # print(f"Naming: {naming_ob}")
+        # print(f"Kw: {kw}")
+        cur_date = datetime.datetime.now().strftime("%Y.%m.%d-%H.%M")
+
+        path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
+
+        os.makedirs(path_this_model_folder, exist_ok=True)
+        os.makedirs(os.path.join(path_this_model_folder + "data"), exist_ok=True)
+
+        path_qvals = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-qvals.csv')
+        path_sess = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-sess.csv')
+        path_times = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-times.csv')
+        path_loss = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-loss.csv')
+
+        with open(path_qvals, "at", buffering=1) as q_textfile:
+            arr = ['sess_eps', 'i_train_sess', 'agent_i', 'i_sample', 'q1', 'q2', 'q3']
+            q_textfile.write(','.join(arr) + "\n")
+
+            with open(path_sess, "at", buffering=1) as sess_textfile:
+                arr2 = ['sess_eps', 'i_train_sess', 'sess_start', 'sess_end', 'agent_i', 'gain']
+                sess_textfile.write(','.join(arr2) + "\n")
+
+                with open(path_times, "at", buffering=1) as time_textfile:
+                    time_textfile.write("loop_time\n")
+                    with open(path_loss, "at", buffering=1) as loss_textfile:
+                        loss_textfile.write("sess_i,session_meanloss\n")
+
+                        return fun(
+                                *arg,
+                                naming_ob=naming_ob, **kw,
+                                qvals_file=q_textfile, session_file=sess_textfile,
+                                time_file=time_textfile, loss_file=loss_textfile,
+                        )
+
+    return wrapper
+
+
+@results_decorator
 def train_qmodel(
-        model_keras: keras.Model, naming_ob: NamingClass,
-        datalist_2dsequences_ordered_train, price_col_ind,
+        model_keras: keras.Model, datalist_2dsequences_ordered_train,
+        price_col_ind,
+        naming_ob: NamingClass,
         fulltrain_ntimes=1000,
         agents_n=10,
         session_size=3600,
 
-        allow_train=True, fresh_memory: ModelMemory = None,
+        allow_train=True, model_memory: ModelMemory = None,
 
         # Optional
         max_eps=0.8, override_eps=None,
-        old_mem_fraction=0.2,
-        fresh_mem_fraction=0.7,
+        remeber_fresh=0.4,
+        train_from_old=0.2,
+        old_memory_size=300_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -117,6 +177,12 @@ def train_qmodel(
         stock_price_multiplier=0.5,
         stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
+
+        # FILE SAVERS
+        qvals_file: TextIOWrapper = None,
+        session_file: TextIOWrapper = None,
+        time_file: TextIOWrapper = None,
+        loss_file: TextIOWrapper = None,
 ):
     RUN_LOGGER.debug(
             f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
@@ -128,20 +194,16 @@ def train_qmodel(
     # print(normed_data.shape)
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
 
-    os.makedirs(path_this_model_folder, exist_ok=True)
-    os.makedirs(os.path.join(path_this_model_folder + "data"), exist_ok=True)
-
     if os.path.isfile(path_this_model_folder + "weights.keras"):
         RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
         model_keras.load_weights(path_this_model_folder + "weights.keras")
     else:
         RUN_LOGGER.info("Not loading model.")
-    if fresh_memory is None:
-        # memory = deque(maxlen=300_000)
-        # fresh_memory = AgentsMemory()
-        agents_memory = AgentsMemory()
+
+    if model_memory is None:
+        model_memory = ModelMemory(maxlen=int(old_memory_size))
     else:
-        assert isinstance(fresh_memory, (AgentsMemory,)), "Memory must be an instance of ModelMemory"
+        assert isinstance(model_memory, (ModelMemory,)), "Memory must be an instance of ModelMemory"
 
     if not allow_train:
         agents_n = 1
@@ -153,10 +215,10 @@ def train_qmodel(
     reward_fun = RewardStore.get(reward_f_num)
 
     out_size = int(naming_ob.outsize)
-    qv_dataframe = pd.DataFrame(columns=['eps', 'sess_i', 'sample_n', 'buy', 'idle', 'sell'])
-    session_dataframe = pd.DataFrame(columns=['eps', 'session_num', 'ind_start', 'ind_end', 'gain'])
+    # qv_dataframe = pd.DataFrame(columns=['eps', 'sess_i', 'sample_n', 'buy', 'idle', 'sell'])
+    # session_dataframe = pd.DataFrame(columns=['eps', 'session_num', 'ind_start', 'ind_end', 'gain'])
 
-    LOOP_TIMES = []
+    LOOP_TIMES = deque(maxlen=100)
 
     for i_train_sess in range(fulltrain_ntimes):
         last_start = N_SAMPLES - session_size
@@ -164,8 +226,6 @@ def train_qmodel(
         ses_start = np.random.randint(0, last_start)
         ses_end = ses_start + session_size
 
-        RUN_LOGGER.debug(
-                f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} : {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {session_size}")
         starttime = time.time()
         "Clone model if step training"
         # stable_model = model_keras.copy()
@@ -179,7 +239,8 @@ def train_qmodel(
         else:
             session_eps = get_eps(i_train_sess, fulltrain_ntimes, max_explore=max_eps)
 
-        QHISTORY = []
+        RUN_LOGGER.debug(
+                f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} (Eps: {session_eps:>2.3f}) : {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {session_size}.")
 
         "Start with different money values"
         # "CASH | CARGO | LAST SELL | LAST BUY | LAST TRANSACTION PRICE"
@@ -235,9 +296,13 @@ def train_qmodel(
             #     actions = np.random.randint(0, 3, agents_n)
             else:
                 actions = np.argmax(q_vals, axis=-1)
-                # QHISTORY.append(q_vals.ravel())
-                for qv in q_vals:
-                    qv_dataframe.loc[len(qv_dataframe)] = session_eps, i_train_sess, i_sample, *qv
+
+                "Saving predicted qvals"
+                for agent_i, qv in enumerate(q_vals):
+                    # qv_dataframe.loc[len(qv_dataframe)] = session_eps, i_train_sess, i_sample, *qv
+                    arr = [session_eps, i_train_sess, agent_i, i_sample, *qv]
+                    text = ','.join([str(a) for a in arr]) + "\n"
+                    qvals_file.write(text)
 
             # last_price = prices[x]
             rewards = []
@@ -284,9 +349,14 @@ def train_qmodel(
 
         gain = hidden_states[:, 0] - hidden_states[:, 1]
         # RUN_LOGGER.debug(f"End gains: {gain}")
-        for g in gain:
-            session_dataframe.loc[
-                len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
+
+        "Saving session data"
+        for gi, g in enumerate(gain):
+            arr = [session_eps, i_train_sess, ses_start, ses_end, gi, g]
+            text = ','.join([str(a) for a in arr]) + "\n"
+            # print(f"Writing text to session: '{text}'")
+            session_file.write(text)
+
         DEBUG_LOGGER.debug(hidden_states)
         DEBUG_LOGGER.debug(f"End gains rel: {(gain / hidden_states[:, 1]).reshape(-1, 1)}")
         # RUN_LOGGER.debug(f"End cargo: {hidden_states[:, 2]}")
@@ -300,35 +370,31 @@ def train_qmodel(
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
-            append_data_to_file([loss], path_this_model_folder, "hist_loss.npy")
+            loss_file.write(f"{i_train_sess},{loss}\n")
 
         "RESOLVE END SCORE"
 
         endtime = time.time()
         duration = endtime - starttime
         LOOP_TIMES.append(duration)
-        DEBUG_LOGGER.info(
-                f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
-        RUN_LOGGER.info(
-                f"This loop took: {duration:>5.4f}s. Current memory samples: {len(fresh_memory.memory)}")
+        loop_sum_text = f"This loop took: {duration:>5.4f}s. Fresh mem: {len(fresh_memory)}, Total mem: {len(model_memory)}"
+        DEBUG_LOGGER.info(loop_sum_text)
+        RUN_LOGGER.info(loop_sum_text)
+
+        model_memory.migrate(fresh_memory.memory)
 
         if allow_train and not i_train_sess % 10:
             model_keras.save_weights(path_this_model_folder + "weights.keras")
             RUN_LOGGER.info(f"Saved weights: {naming_ob}")
-            save_csv_locked(session_dataframe,
-                            os.path.join(path_this_model_folder, "data", "session.csv"))
-            save_csv_locked(qv_dataframe, os.path.join(path_this_model_folder, "data", "qvals.csv"))
+
+        time_file.write(f"{duration}\n")
+        DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+        RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")
         RUN_LOGGER.info(f"Saved weights: {naming_ob}")
-        save_csv_locked(session_dataframe,
-                        os.path.join(path_this_model_folder, "data", "session.csv"))
-        save_csv_locked(qv_dataframe, os.path.join(path_this_model_folder, "data", "qvals.csv"))
 
-    append_data_to_file(LOOP_TIMES, path_this_model_folder, "hist_times.npy")
-    DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
-    RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     # return history, best, best_all
 
@@ -441,15 +507,15 @@ def deep_q_reinforce(
 
 
 # @measure_real_time_decorator
-def append_data_to_file(values, path_this_model_folder, file_name, axis=0):
-    if os.path.isfile(path_this_model_folder + file_name):
-        old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
-        full_hist = np.concatenate([old_hist, values], axis=axis)
-        RUN_LOGGER.debug(f"Saved data to: {file_name}")
-    else:
-        full_hist = values
-        RUN_LOGGER.debug(f"Started saving data to: {file_name}")
-    np.save(path_this_model_folder + file_name, full_hist)
+# def append_data_to_file(values, path_this_model_folder, file_name, axis=0):
+#     if os.path.isfile(path_this_model_folder + file_name):
+#         old_hist = np.load(path_this_model_folder + file_name, allow_pickle=True)
+#         full_hist = np.concatenate([old_hist, values], axis=axis)
+#         RUN_LOGGER.debug(f"Saved data to: {file_name}")
+#     else:
+#         full_hist = values
+#         RUN_LOGGER.debug(f"Started saving data to: {file_name}")
+#     np.save(path_this_model_folder + file_name, full_hist)
 
 
 def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
@@ -480,25 +546,7 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-from model_creator import grid_models_generator
-from common_functions import to_sequences_forward
-
-
 if __name__ == "__main__":
-    # memory_ob = ModelMemory()
-    #
-    # x = np.linspace(0, 1, 10001)
-    # y = get_eps(x, 1)
-    # plt.plot(x, y)
-    # plt.show()
-    # train_qmodel()
-    # agents_states, initial_states, empty_ref_list = initialize_agents(10)
-    # print(agents_states)
-    # print(empty_ref_list)
-    # empty_ref_list[0] = [1]
-    # empty_ref_list[1].append(2)
-    # print(empty_ref_list)
-    # print(initial_states)
     RUN_LOGGER.info("=== NEW TRAINING ===")
 
     "LOAD Data"
@@ -534,7 +582,13 @@ if __name__ == "__main__":
         )
 
         try:
-            train_qmodel(model, naming_ob, train_sequences, price_col_ind=price_id, session_size=3600)
+            train_qmodel(
+                    model, train_sequences,
+                    price_col_ind=price_id,
+                    naming_ob=naming_ob,
+                    session_size=160,
+                    fulltrain_ntimes=4,
+            )
         except Exception as exc:
             import traceback
 
@@ -544,6 +598,7 @@ if __name__ == "__main__":
             # print(exc.__traceback__.msg)
 
             break
+        break
     # memory = AgentsMemory()
     # memory.add_sample(1, 2, 3, 4, 5, 6, 7, 8)
     #
