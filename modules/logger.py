@@ -6,7 +6,7 @@ import os
 
 def create_logger(name="Training", path=None, extra_debug=None,
                   date_in_file=True, combined=True, unique_logger=True,
-                  stream_lvl=None, file_lvl=None):
+                  stream_lvl=None, file_lvl=None, number=0):
     if combined:
         file_name = "all"
     else:
@@ -56,7 +56,7 @@ def create_logger(name="Training", path=None, extra_debug=None,
 
     # Log Formatting
     formatter = logging.Formatter(
-            f'%(asctime)s -{name}- %(levelname)s - %(message)s')
+            f'%(asctime)s -{name}({number:>03})- %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 
@@ -77,7 +77,7 @@ def create_logger(name="Training", path=None, extra_debug=None,
 
 def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
                         date_in_file=True, combined=True, unique_logger=True,
-                        stream_lvl=None, file_lvl=None):
+                        stream_lvl=None, file_lvl=None, number=0):
     if date_in_file:
         dt = datetime.datetime.now().strftime("%Y-%m-%d")
         file_name = f"{dt}-debug"
@@ -86,7 +86,7 @@ def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
     if unique_logger:
         unique_name = str(random.random())  # Random unique
     else:
-        unique_name = name
+        unique_name = name + f"({number:>03})"
 
     logger = logging.getLogger(unique_name)
     logger.setLevel("DEBUG")
@@ -122,7 +122,7 @@ def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
 
     # Log Formatting
     formatter = logging.Formatter(
-            f'%(asctime)s -{name}- %(levelname)s - %(message)s')
+            f'%(asctime)s -{name}({number:>03})- %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
 

@@ -1,23 +1,21 @@
 import numpy as np
 
 import time
-import keras
+from tensorflow import keras
 import os
 import datetime
 import logger
 
 from random import sample, shuffle
-from common_functions import NamingClass, get_splits
-from actors import initialize_agents, resolve_actions
+from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
-from common_functions import get_eps
+from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward
 from reward_functions import RewardStore
 
 from functools import wraps
 from collections import deque
-from model_creator import grid_models_generator
-from common_functions import to_sequences_forward
+from model_creator import grid_models_generator, model_builder
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
@@ -33,10 +31,6 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # session_dataframe.loc[
 #     len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
-
-
-RUN_LOGGER = logger.logger
-DEBUG_LOGGER = logger.debug_logger
 
 
 class AgentsMemory:
@@ -132,6 +126,7 @@ def results_decorator(fun):
         path_sess = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-sess.csv')
         path_times = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-times.csv')
         path_loss = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-loss.csv')
+        path_rewards = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-rewards.csv')
 
         with open(path_qvals, "at", buffering=1) as q_textfile:
             arr = ['sess_eps', 'i_train_sess', 'agent_i', 'i_sample', 'q1', 'q2', 'q3']
@@ -145,13 +140,16 @@ def results_decorator(fun):
                     time_textfile.write("loop_time\n")
                     with open(path_loss, "at", buffering=1) as loss_textfile:
                         loss_textfile.write("sess_i,session_meanloss\n")
+                        with open(path_rewards, "at", buffering=1) as rew_textfile:
+                            rew_textfile.write("sess_i,eps,i_sample,agent_i,reward,\n")
 
-                        return fun(
-                                *arg,
-                                naming_ob=naming_ob, **kw,
-                                qvals_file=q_textfile, session_file=sess_textfile,
-                                time_file=time_textfile, loss_file=loss_textfile,
-                        )
+                            return fun(
+                                    *arg,
+                                    naming_ob=naming_ob, **kw,
+                                    qvals_file=q_textfile, session_file=sess_textfile,
+                                    time_file=time_textfile, loss_file=loss_textfile,
+                                    rew_file=rew_textfile,
+                            )
 
     return wrapper
 
@@ -169,14 +167,14 @@ def train_qmodel(
 
         # Optional
         max_eps=0.8, override_eps=None,
-        remember_fresh_fraction=0.4,
-        train_from_oldmem_fraction=0.3,
-        old_memory_size=300_000,
+        remember_fresh_fraction=0.3,
+        train_from_oldmem_fraction=0.4,
+        old_memory_size=400_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
-        reward_f_num=1,
-        discount=0.98,
+        reward_f_num=2,
+        discount=0.95,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
 
@@ -185,12 +183,14 @@ def train_qmodel(
         # stock_price_multiplier=0.5,
         # stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
+        allow_multibuy=False,
 
         # FILE SAVERS
         qvals_file: TextIOWrapper = None,
         session_file: TextIOWrapper = None,
         time_file: TextIOWrapper = None,
         loss_file: TextIOWrapper = None,
+        rew_file: TextIOWrapper = None,
 ):
     RUN_LOGGER.debug(
             f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
@@ -215,6 +215,10 @@ def train_qmodel(
 
     if not allow_train:
         agents_n = 1
+    if allow_multibuy:
+        resolve_actions_func = resolve_actions_multibuy
+    else:
+        resolve_actions_func = resolve_actions_singlebuy
 
     if N_SAMPLES <= 0:
         raise ValueError(
@@ -273,7 +277,7 @@ def train_qmodel(
         "0, 1, 2"
         "Sell, Pass, Buy"
         t0_walking = time.time()
-        for i_sample in range(ses_start, ses_end):
+        for i_sample in range(ses_start, ses_end - 1):  # Never in done state
             done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
@@ -319,12 +323,17 @@ def train_qmodel(
             env_state_arr = timesegment_2d
 
             cur_step_price = env_state_arr[0, price_col_ind]
-            for state_arr, act, hidden_arr in zip(agents_discrete_states, actions, hidden_states):
+            for agent_i, (state_arr, act, hidden_arr) in enumerate(
+                    zip(agents_discrete_states, actions, hidden_states)
+            ):
                 # hidden_arr[1] = cur_step_price
 
                 rew, valid = reward_fun(
                         env_state_arr, state_arr, act, hidden_arr, done_session, cur_step_price,
                 )
+                arr = [i_train_sess, session_eps, i_sample, agent_i, rew]
+                text = ",".join([str(a) for a in arr])
+                rew_file.write(text + "\n")
                 rewards.append(rew)
                 valids.append(valid)
 
@@ -332,7 +341,7 @@ def train_qmodel(
                 env_states_inds = [i_sample] * agents_n
                 env_states_inds_fut = [i_sample + 1] * agents_n
                 # agents_states = agents_discrete_states.copy()
-                new_states, new_hidden_states = resolve_actions(
+                new_states, new_hidden_states = resolve_actions_func(
                         cur_step_price, agents_discrete_states, hidden_states, actions
                 )
 
@@ -341,10 +350,10 @@ def train_qmodel(
                 fresh_memory.add_batch(env_states_inds, env_states_inds_fut, agents_discrete_states,
                                        new_states,
                                        actions, rewards, dones, q_vals)
-                # print(fresh_memory)
+
             else:
                 "Dont train"
-                new_states, new_hidden_states = resolve_actions(
+                new_states, new_hidden_states = resolve_actions_func(
                         cur_step_price, agents_discrete_states, hidden_states, actions
                 )
 
@@ -366,7 +375,8 @@ def train_qmodel(
             session_file.write(text)
 
         DEBUG_LOGGER.debug(hidden_states)
-        DEBUG_LOGGER.debug(f"End gains rel: {(gain / hidden_states[:, 1]).reshape(-1, 1)}")
+        DEBUG_LOGGER.debug(f"End gains: {gain.reshape(-1, 1)}")
+        DEBUG_LOGGER.debug(f"End cargo: {hidden_states[:, 2].reshape(-1, 1)}")
         # RUN_LOGGER.debug(f"End cargo: {hidden_states[:, 2]}")
 
         "Session Training"
@@ -496,19 +506,11 @@ def deep_q_reinforce_fresh(
 
         max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
 
-        for fresh_qrow, max_q, act, rew, done in zip(fresh_qvals, max_future_argq, actions, rewards,
-                                                     dones):
-            if done:
-                # targ = rew
-                fresh_qrow[2] = rew
-            else:
-                targ = rew + discount * max_q * int(not done)
-                fresh_qrow[act] = targ
-            # print(f"{row}, {act}, rew:{rew:8.3f},  maxq:{max_q:6.2f}, r+g*max:{targ:5.2f}, {done}")
+        new_qvals = sub_deepq_func(actions, discount, dones, fresh_qvals, max_future_argq, rewards)
 
         "Reinforce"
         time_pretrain = time.time()
-        history_ob = mod.fit([envs_states_arr, states], fresh_qvals, shuffle=True,
+        history_ob = mod.fit([envs_states_arr, states], new_qvals, shuffle=True,
                              batch_size=mini_batchsize,
                              verbose=False)
 
@@ -520,6 +522,20 @@ def deep_q_reinforce_fresh(
     timeend = time.time()
     RUN_LOGGER.info(f"Full (fresh) training took : {timeend - time_f_start :>6.3f}s")
     return np.mean(losses)
+
+
+def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, rewards):
+    # for qv_row, max_q, act, rew, done in zip(
+    #         curr_qvals, max_future_argq, actions, rewards, dones):
+    #     if done:
+    #         qv_row[act] = rew
+    #     else:
+    #         targ = rew + discount * max_q * int(not done)
+    #         qv_row[act] = targ
+
+    curr_qvals[:, actions] = rewards + discount * max_future_argq * (1 - dones.astype(int))
+
+    return curr_qvals
 
 
 def deep_q_reinforce_oldmem(
@@ -601,18 +617,11 @@ def deep_q_reinforce_oldmem(
 
 
         max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
-
-        for fresh_qrow, max_q, act, rew, done in zip(current_qvals, max_future_argq, actions, rewards,
-                                                     dones):
-            if done:
-                fresh_qrow[2] = rew
-            else:
-                targ = rew + discount * max_q * int(not done)
-                fresh_qrow[act] = targ
+        new_qvals = sub_deepq_func(actions, discount, dones, current_qvals, max_future_argq, rewards)
 
         "Reinforce"
         time_pretrain = time.time()
-        history_ob = mod.fit([envs_states_arr, states], current_qvals, shuffle=True,
+        history_ob = mod.fit([envs_states_arr, states], new_qvals, shuffle=True,
                              batch_size=mini_batchsize,
                              verbose=False)
 
@@ -666,36 +675,49 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-# def single_model_training_function(data):
-def single_model_training_function(counter, model, params):
-    # gpus = tf.config.list_physical_devices('GPU')
-    # for gpu in gpus:
-    #     tf.config.experimental.set_memory_growth(gpu, True)
+def single_model_training_function(counter, model_params, train_sequences, price_id):
+    "LIMIT GPU BEFORE BUILDING MODEL"
+    gpus = tf.config.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
 
-    arch_num, loss, nodes, batch, lr = params
-    print(f"started Training:{counter},{params}")
+    (arch_num, time_feats, time_window, float_feats, out_size,
+     nodes, lr, batch, loss
+     ) = model_params
+    model = model_builder(
+            arch_num, time_feats, time_window, float_feats, out_size, loss, nodes, lr,
+            batch
+    )
+    reward_fnum = 2
+
+    "GLOBAL LOGGERS"
+    global RUN_LOGGER
+    global DEBUG_LOGGER
+    RUN_LOGGER = logger.create_logger(number=counter)
+    DEBUG_LOGGER = logger.create_debug_logger(number=counter)
 
     RUN_LOGGER.info(
             f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
     naming_ob = NamingClass(
             arch_num, ITERATION,
-            time_feats=time_ftrs, time_window=time_wind, float_feats=float_feats, outsize=out_sze,
-            node_size=nodes,
+            time_feats=time_feats, time_window=time_window, float_feats=float_feats, outsize=out_size,
+            node_size=nodes, reward_fnum=reward_fnum,
 
-            learning_rate=lr, loss=loss, batch=batch
+            learning_rate=lr, loss=loss, batch=batch,
     )
+
     try:
         # for gpu in tf.config.experimental.list_physical_devices("GPU"):
         #     pass
         # f"Limitig gpu: {gpu}"
         # tf.config.experimental.set_memory_growth(gpu, True)
-        print("TRAIN QModel")
         train_qmodel(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=1500,
-                fulltrain_ntimes=500,
+                fulltrain_ntimes=300,
+                reward_f_num=reward_fnum,
         )
     except Exception as exc:
         "PRINT TO SYS"
@@ -706,13 +728,9 @@ def single_model_training_function(counter, model, params):
     del model
 
 
-def dummy_grid_generator():
-    for i in range(35):
-        print(f"Yielding dumy generator: {i}")
-        yield i
-
-
 if __name__ == "__main__":
+    RUN_LOGGER = logger.logger
+    # DEBUG_LOGGER = logger.debug_logger
     RUN_LOGGER.info("=== NEW TRAINING ===")
 
     "LOAD Data"
@@ -735,85 +753,34 @@ if __name__ == "__main__":
     "Model Grid"
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
-    for data in gen1:
-        single_model_training_function(*data)
+    # for data in gen1:
+    #     single_model_training_function(*data)
 
-    # args = list(gen1)
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        process_list = []
+        counter = 0
+        for data in gen1:
+            RUN_LOGGER.info(f"Adding process with: {data}")
+            proc = executor.submit(single_model_training_function, *data, train_sequences, price_id)
+            process_list.append(proc)
+            counter += 1
+            if counter > 4:
+                break
 
-    # print(args)
-    #
-    # process_num = 2
-    # que = multiprocessing.Queue(process_num)
-    # pool = multiprocessing.Pool(process_num)
+            # while True
+        # proc.e
+        #     results.append(proc)
+        print("Waiting:")
+        # result = concurrent.futures.wait(process_list)
+        # print("Waiting finished.")
+        for proc in process_list:
+            print(f"Waiting for Proc {proc}")
+            proc.result()
+            print(f"Proc {proc} has finished.")
 
-    # pool.map(single_model_training_function, (q,))
+        # for f in as_completed(process_list):
+        #     print(f.result())
 
-
-    # "BROKEN ASS"
-    # # process_list = []
-    # # for data_i, data in enumerate(gen1):
-    # #     print("Starting process")
-    # #     proc = multiprocessing.Process(target=single_model_training_function, args=(data,))
-    # #     proc.start()
-    # #     process_list.append(proc)
-    # #
-    # #     while True:
-    # #         if len(process_list) < process_num:
-    # #             break
-    # #
-    # #         drop_inds = []
-    # #         for i, pr in enumerate(process_list):
-    # #             "If some process is idle. Add data"
-    # #             if not pr.is_alive():
-    # #                 pr.join()
-    # #                 drop_inds.append(i)
-    # #             # print(i, pr.is_alive())
-    # #
-    # #         "From last to first"
-    # #         for di in drop_inds[::-1]:
-    # #             print("Dropping process")
-    # #             process_list.pop(di)
-    # #
-    # #         print("Sleeping 1")
-    # #         time.sleep(1)
-    # #
-    # # for pr in process_list:
-    # #     print("Waiting for Last process")
-    # #     pr.join()
-    #
-    # # for args in gen1:
-    # #     print(args)
-    # #     pass
-    #
-    # # gpus = tf.config.list_physical_devices('GPU')
-    # # for gpu in gpus:
-    # #     tf.config.experimental.set_memory_growth(gpu, True)
-    #
-    # # Limit GPU memory usage to a fraction
-    # # tf.config.gpu.set_per_process_memory_fraction(0.2)
-    # # tf.config.gpu.set_per_process_memory_growth(False)
-    #
-    # with ProcessPoolExecutor(max_workers=1) as executor:
-    #     process_list = []
-    #     counter = 0
-    #     for data in gen1:
-    #         proc = executor.submit(single_model_training_function, data)
-    #         process_list.append(proc)
-    #         print("Starting process")
-    #         counter += 1
-    #         if counter > 2:
-    #             break
-    #
-    #         # while True
-    #     # proc.e
-    #     #     results.append(proc)
-    #     print("Waiting:")
-    #     result = concurrent.futures.wait(process_list)
-    #     print("Waiting finished.")
-    #
-    #     for f in as_completed(process_list):
-    #         print(f.result())
-    #
-    #     # for res in process_list:
-    #     #     print(res)
-    #     #     res.join()
+    # for res in process_list:
+    #     print(res)
+    #     res.join()

@@ -10,7 +10,7 @@ def initialize_agents(agents_n, start_stock=0):
 
     Returns:
         Discrete state: Integer of assets
-        Hidden state: [Cash, Starting cash, cargo]
+        Hidden state: [Cash, starting cash, cargo]
 
     """
     # states = np.random.random((agents_n, 1)) * 2 + 1
@@ -30,7 +30,7 @@ def initialize_agents(agents_n, start_stock=0):
     return disc_state, hidden_state
 
 
-def resolve_actions(cur_step_price, discrete_states, hidden_states, actions, price_mod=1):
+def resolve_actions_multibuy(cur_step_price, discrete_states, hidden_states, actions, price_mod=1):
     """
 
     Args:
@@ -54,6 +54,49 @@ def resolve_actions(cur_step_price, discrete_states, hidden_states, actions, pri
 
         elif act == 1:
             pass
+        elif act == 2:
+            "SELL"
+            if new_hidden_state[i][2] <= 0:
+                new_hidden_state[i][2] = 0
+            else:
+                new_hidden_state[i][2] -= 1
+                new_hidden_state[i][0] += cur_step_price * price_mod
+
+                if new_hidden_state[i][2] > 0:
+                    new_disc_state[i] = 1
+                else:
+                    new_disc_state[i] = 0
+
+    return new_disc_state, new_hidden_state
+
+
+def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, actions, price_mod=1):
+    """
+
+    Args:
+        cur_step_price:
+        discrete_states:
+        hidden_states:
+        price:
+        price_mod:
+
+    Returns:
+
+    """
+    new_disc_state = discrete_states.copy()
+    new_hidden_state = hidden_states.copy()
+    for i, (dsc_state, hid_state, act) in enumerate(zip(discrete_states, hidden_states, actions)):
+        if act == 0:
+            "BUY"
+            if new_disc_state[i] == 0:
+                "BUY only if have none"
+                new_disc_state[i] = 1
+                new_hidden_state[i][0] -= cur_step_price * price_mod
+                new_hidden_state[i][2] += 1
+
+        elif act == 1:
+            pass
+
         elif act == 2:
             "SELL"
             if new_hidden_state[i][2] <= 0:

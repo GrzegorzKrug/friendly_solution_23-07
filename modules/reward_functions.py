@@ -4,10 +4,12 @@ import typing
 
 
 INVALID_MOVE = -10
-SMALL_MISTAKE = INVALID_MOVE * 0.02
+BASE_PENALTY = -1
+
+
 # SMALL_MISTAKE = -0.5
 
-ENDING_GAIN_SCALE = 20
+# ENDING_GAIN_SCALE = 20
 
 
 # ROI_IMORTANCE = 10
@@ -77,7 +79,6 @@ def reward_fun_1(
     """Assign Reward"""
 
     # cash, cargo, last_sell, last_buy, last_transaction_price = wallet
-
     # time_now = last_row[0]
     # price_sample = last_row[4]
     cash, initial_cash, discrete_stock = hidden_arr
@@ -88,7 +89,7 @@ def reward_fun_1(
         # cash = discrete_state[0]
         end_cash = cash + price * float(discrete_stock)
         gain = end_cash - initial_cash
-        return gain * ENDING_GAIN_SCALE, True
+        return gain * 20, True
     else:
         if action == 0:
             "BUY"
@@ -102,6 +103,59 @@ def reward_fun_1(
                 return INVALID_MOVE, False
 
         return 0, True
+
+
+@RewardStore.add(2)
+# @numba.njit()
+def reward_fun_2(
+        env_arr, discrete_state, action: int,
+        hidden_arr,
+        done=False,
+        price=0,
+        # price_col_ind=0,
+        # initial_cash=0,
+):
+    """Allow buying only single asset"""
+    cash, initial_cash, discrete_stock = hidden_arr
+
+    # price_now = env_arr[0, price_col_ind]
+    # print(f"Price now:", price_now)
+    if done:
+        end_cash = cash
+        gain_at_end_of_day = (end_cash - initial_cash) * 5
+        asset_val = price * float(discrete_stock)
+        if action == 0:
+            "BUY"
+            return BASE_PENALTY + gain_at_end_of_day - asset_val, True
+
+        elif action == 1:
+            "PASS"
+            return gain_at_end_of_day - asset_val, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE + gain_at_end_of_day, False
+            else:
+                return gain_at_end_of_day + asset_val, True
+    else:
+        if action == 0:
+            "BUY"
+            if discrete_stock == 0:
+                return -price * 3, True
+            else:
+                return INVALID_MOVE, False
+
+        elif action == 1:
+            "PASS"
+            return BASE_PENALTY, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE, False
+
+            return price, True
 
 
 if __name__ == "__main__":

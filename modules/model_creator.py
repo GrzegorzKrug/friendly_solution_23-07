@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from tensorflow import keras
+
 from tensorflow.keras.layers import (
     Input, Dense, Dropout,
     # Conv1D, Conv2D, MaxPool2D,
@@ -270,26 +272,34 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
-    for arch_num in [2, 6]:
-        for loss in ['mse', 'mae']:
-            for nodes in [200, 400]:
-                for batch in [1000, 2000]:
-                    for lr in [1e-4, 1e-5]:
-                        arch = ArchRegister.funcs[arch_num]
-                        # model = None
-                        model = arch(
-                                time_feats, time_window, float_feats, out_size, nodes,
-                                compile=False
+    for batch in [1000, 2000]:
+        for nodes in [200, 400]:
+            for arch_num in [2, 6]:
+                for lr in [1e-5, 1e-4]:
+                    for loss in ['mse', 'mae']:
+                        print(f"Yielding params counter: {counter}")
+                        yield counter, (
+                                arch_num, time_feats, time_window, float_feats, out_size,
+                                nodes, lr, batch, loss
                         )
-                        model: keras.Model
-                        # model._init_set_name(f"{counter}-{arch_num}")
-                        # model.name = f"{counter}-{arch_num}"
-                        adam = Adam(learning_rate=lr)
-                        model.compile(loss=loss, optimizer=adam)
-
-                        print(f"Yielding model: {counter}")
-                        yield counter, model, (arch_num, loss, nodes, batch, lr)
                         counter += 1
+
+
+def model_builder(
+        arch_num, time_feats, time_window, float_feats, out_size,
+        loss, nodes, lr, batch):
+    arch = ArchRegister.funcs[arch_num]
+    # model = None
+    model = arch(
+            time_feats, time_window, float_feats, out_size, nodes,
+            compile=False
+    )
+    model: keras.Model
+    # model._init_set_name(f"{counter}-{arch_num}")
+    # model.name = f"{counter}-{arch_num}"
+    adam = Adam(learning_rate=lr)
+    model.compile(loss=loss, optimizer=adam)
+    return model
 
 
 def plot_all_architectures():
