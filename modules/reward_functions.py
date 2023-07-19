@@ -157,7 +157,7 @@ def reward_fun_2(
             if discrete_stock <= 0:
                 return INVALID_MOVE, False
 
-            return price, True
+            return price * 2, True
         else:
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 

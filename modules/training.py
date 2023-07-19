@@ -375,9 +375,9 @@ def train_qmodel(
             # print(f"Writing text to session: '{text}'")
             session_file.write(text)
 
-        DEBUG_LOGGER.debug(hidden_states)
+        DEBUG_LOGGER.debug(f"End hidden state: {hidden_states}")
         DEBUG_LOGGER.debug(f"End gains: {gain.reshape(-1, 1)}")
-        DEBUG_LOGGER.debug(f"End cargo: {hidden_states[:, 2].reshape(-1, 1)}")
+        # DEBUG_LOGGER.debug(f"End cargo: {hidden_states[:, 2].reshape(-1, 1)}")
         # RUN_LOGGER.debug(f"End cargo: {hidden_states[:, 2]}")
 
         "Session Training"
@@ -704,8 +704,9 @@ def single_model_training_function(
          nodes, lr, batch, loss
          ) = model_params
         model = model_builder(
-                arch_num, time_feats, time_window, float_feats, out_size, loss, nodes, lr,
-                batch
+                arch_num,
+                time_feats, time_window, float_feats, out_size,
+                loss, nodes, lr, batch
         )
         reward_fnum = 2
 
@@ -734,8 +735,8 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=1500,
-                fulltrain_ntimes=300,
+                session_size=1000,
+                fulltrain_ntimes=200,
                 reward_f_num=reward_fnum,
         )
     except Exception as exc:
@@ -775,16 +776,18 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            proc = executor.submit(single_model_training_function, *data, train_sequences, price_id,
-                                   MainLogger)
+            proc = executor.submit(
+                    single_model_training_function, *data, train_sequences, price_id,
+                    MainLogger
+            )
             process_list.append(proc)
             counter += 1
-            if counter > 4:
-                break
+            # if counter > 4:
+            #     break
 
             # while True
         # proc.e
