@@ -304,6 +304,7 @@ def train_qmodel(
             if allow_train and session_eps > 0 and session_eps > np.random.random():
                 "Random Action"
                 actions = np.random.randint(0, out_size, agents_n)
+                # print(f"Random actions: {actions}")
             # elif FORCE_RANDOM:
             #     actions = np.random.randint(0, 3, agents_n)
             else:
@@ -533,7 +534,13 @@ def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, reward
     #         targ = rew + discount * max_q * int(not done)
     #         qv_row[act] = targ
 
-    curr_qvals[:, actions] = rewards + discount * max_future_argq * (1 - dones.astype(int))
+    new_vector = rewards + discount * max_future_argq * (1 - dones.astype(int))
+    # print("New vector")
+    # print(new_vector[:10])
+    # print(new_vector.shape)
+    # curr_qvals[:, actions] = new_vector
+    for i, (ac, v) in enumerate(zip(actions, new_vector)):
+        curr_qvals[i, ac] = v
 
     return curr_qvals
 
@@ -675,20 +682,12 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-def single_model_training_function(counter, model_params, train_sequences, price_id):
+def single_model_training_function(
+        counter, model_params, train_sequences, price_id,
+        main_logger: logger
+):
     "LIMIT GPU BEFORE BUILDING MODEL"
-    gpus = tf.config.list_physical_devices('GPU')
-    for gpu in gpus:
-        tf.config.experimental.set_memory_growth(gpu, True)
-
-    (arch_num, time_feats, time_window, float_feats, out_size,
-     nodes, lr, batch, loss
-     ) = model_params
-    model = model_builder(
-            arch_num, time_feats, time_window, float_feats, out_size, loss, nodes, lr,
-            batch
-    )
-    reward_fnum = 2
+    main_logger.info(f"Process of: {counter} has started now.")
 
     "GLOBAL LOGGERS"
     global RUN_LOGGER
@@ -696,15 +695,35 @@ def single_model_training_function(counter, model_params, train_sequences, price
     RUN_LOGGER = logger.create_logger(number=counter)
     DEBUG_LOGGER = logger.create_debug_logger(number=counter)
 
-    RUN_LOGGER.info(
-            f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
-    naming_ob = NamingClass(
-            arch_num, ITERATION,
-            time_feats=time_feats, time_window=time_window, float_feats=float_feats, outsize=out_size,
-            node_size=nodes, reward_fnum=reward_fnum,
+    try:
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
 
-            learning_rate=lr, loss=loss, batch=batch,
-    )
+        (arch_num, time_feats, time_window, float_feats, out_size,
+         nodes, lr, batch, loss
+         ) = model_params
+        model = model_builder(
+                arch_num, time_feats, time_window, float_feats, out_size, loss, nodes, lr,
+                batch
+        )
+        reward_fnum = 2
+
+        RUN_LOGGER.info(
+                f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
+        naming_ob = NamingClass(
+                arch_num, ITERATION,
+                time_feats=time_feats, time_window=time_window, float_feats=float_feats,
+                outsize=out_size,
+                node_size=nodes, reward_fnum=reward_fnum,
+
+                learning_rate=lr, loss=loss, batch=batch,
+        )
+    except Exception as exc:
+        print(f"EXCEPTION when setting model: {exc}")
+        RUN_LOGGER.error(exc, exc_info=True)
+        main_logger.error(exc, exc_info=True)
+        return None
 
     try:
         # for gpu in tf.config.experimental.list_physical_devices("GPU"):
@@ -729,9 +748,9 @@ def single_model_training_function(counter, model_params, train_sequences, price
 
 
 if __name__ == "__main__":
-    RUN_LOGGER = logger.logger
+    MainLogger = logger.create_logger(name="MainProcess")
     # DEBUG_LOGGER = logger.debug_logger
-    RUN_LOGGER.info("=== NEW TRAINING ===")
+    MainLogger.info("=== NEW TRAINING ===")
 
     "LOAD Data"
     columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
@@ -758,10 +777,10 @@ if __name__ == "__main__":
 
     with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
-        counter = 0
-        for data in gen1:
-            RUN_LOGGER.info(f"Adding process with: {data}")
-            proc = executor.submit(single_model_training_function, *data, train_sequences, price_id)
+        for counter, data in enumerate(gen1):
+            MainLogger.info(f"Adding process with: {data}")
+            proc = executor.submit(single_model_training_function, *data, train_sequences, price_id,
+                                   MainLogger)
             process_list.append(proc)
             counter += 1
             if counter > 4:

@@ -138,6 +138,8 @@ def reward_fun_2(
                 return INVALID_MOVE + gain_at_end_of_day, False
             else:
                 return gain_at_end_of_day + asset_val, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
     else:
         if action == 0:
             "BUY"
@@ -156,6 +158,8 @@ def reward_fun_2(
                 return INVALID_MOVE, False
 
             return price, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 
 
 if __name__ == "__main__":
