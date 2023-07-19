@@ -169,12 +169,12 @@ def train_qmodel(
         max_eps=0.8, override_eps=None,
         remember_fresh_fraction=0.3,
         train_from_oldmem_fraction=0.4,
-        old_memory_size=400_000,
+        old_memory_size=150_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
         reward_f_num=2,
-        discount=0.95,
+        discount=0.1,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
 
@@ -310,12 +310,12 @@ def train_qmodel(
             else:
                 actions = np.argmax(q_vals, axis=-1)
 
-                "Saving predicted qvals"
-                for agent_i, qv in enumerate(q_vals):
-                    # qv_dataframe.loc[len(qv_dataframe)] = session_eps, i_train_sess, i_sample, *qv
-                    arr = [session_eps, i_train_sess, agent_i, i_sample, *qv]
-                    text = ','.join([str(a) for a in arr]) + "\n"
-                    qvals_file.write(text)
+            "Saving predicted qvals (Save All)"
+            for agent_i, qv in enumerate(q_vals):
+                # qv_dataframe.loc[len(qv_dataframe)] = session_eps, i_train_sess, i_sample, *qv
+                arr = [session_eps, i_train_sess, agent_i, i_sample, *qv]
+                text = ','.join([str(a) for a in arr]) + "\n"
+                qvals_file.write(text)
 
             # last_price = prices[x]
             rewards = []
@@ -753,7 +753,7 @@ if __name__ == "__main__":
     # DEBUG_LOGGER = logger.debug_logger
     MainLogger.info("=== NEW TRAINING ===")
 
-    "LOAD Data"
+    "LOAD Interpolated data"
     columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
     print(
             "Loading file with columns: ", columns,
@@ -765,7 +765,7 @@ if __name__ == "__main__":
     time_wind = 60
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:30000, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -785,7 +785,6 @@ if __name__ == "__main__":
                     MainLogger
             )
             process_list.append(proc)
-            counter += 1
             # if counter > 4:
             #     break
 

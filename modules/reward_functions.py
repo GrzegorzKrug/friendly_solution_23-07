@@ -144,13 +144,13 @@ def reward_fun_2(
         if action == 0:
             "BUY"
             if discrete_stock == 0:
-                return -price * 3, True
+                return -price, True
             else:
                 return INVALID_MOVE, False
 
         elif action == 1:
             "PASS"
-            return BASE_PENALTY, True
+            return 3 * BASE_PENALTY, True
 
         elif action == 2:
             "SELL"

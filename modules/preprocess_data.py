@@ -328,7 +328,6 @@ def generate_interpolated_data(
 
     "Normalize data"
     df = normalize(df)
-
     df.to_csv(path_data_clean_folder + "normalized.csv", index=False)
 
     segments = [df]
@@ -357,8 +356,11 @@ def generate_interpolated_data(
 if __name__ == "__main__":
     input_data_path = folder_danych + "on_balance_volume.txt"
     dataframe = pd.read_csv(input_data_path)
+
+    "CLEAN"
     dataframe = preprocess(dataframe)
 
+    "NORMALIZE"
     # print(folder_danych_clean)
     # path = os.path.join(folder_danych_clean, "test.csv")
     segments, columns = generate_interpolated_data(dataframe=dataframe, include_time=False)
