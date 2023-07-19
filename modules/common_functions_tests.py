@@ -1,6 +1,6 @@
 import pytest
 
-from .common_functions import NamingClass, get_eps
+from common_functions import NamingClass, get_eps
 
 
 # from common_functions import get_eps
@@ -17,7 +17,7 @@ check_args = [
 
 
 @pytest.mark.parametrize("pos_args", check_args)
-def test_1_(pos_args):
+def test_1_Naming_from_Path(pos_args):
     inst1 = NamingClass(*pos_args)
     print(f"Path: {inst1.path}")
     inst2 = NamingClass.from_path(inst1.path)
@@ -26,7 +26,7 @@ def test_1_(pos_args):
 
 
 @pytest.mark.parametrize("pos_args", check_args)
-def test_2_(pos_args):
+def test_2_NamingCopy(pos_args):
     inst1 = NamingClass(*pos_args)
 
     inst2 = inst1.copy()

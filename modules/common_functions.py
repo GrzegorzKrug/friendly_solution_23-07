@@ -87,6 +87,10 @@ class NamingClass:
 
         return text
 
+    @property
+    def cur_model_path(self):
+        return self.path
+
     def copy(self):
         return NamingClass(
                 self.arch_series,
@@ -108,7 +112,7 @@ class NamingClass:
         )
 
     def __str__(self):
-        return f"PathingFiles({self.path})"
+        return f"NamingClass({self.path})"
 
 
 def interp_2d(arr):
