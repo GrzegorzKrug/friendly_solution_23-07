@@ -297,6 +297,7 @@ def model_builder(
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"
+    print(f"Compiling model with lr: {lr}")
     adam = Adam(learning_rate=lr)
     model.compile(loss=loss, optimizer=adam)
     return model
