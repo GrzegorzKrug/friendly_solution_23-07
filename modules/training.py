@@ -506,7 +506,7 @@ def deep_q_reinforce_fresh(
         states = np.array(states)
         states_fut = np.array(states_fut)
         actions = np.array(actions)
-        rewards = np.array(actions)
+        rewards = np.array(rewards)
         dones = np.array(dones)
         fresh_qvals = np.array(fresh_qvals)
 
@@ -615,7 +615,7 @@ def deep_q_reinforce_oldmem(
         states = np.array(states)
         states_fut = np.array(states_fut)
         actions = np.array(actions)
-        rewards = np.array(actions)
+        rewards = np.array(rewards)
         dones = np.array(dones)
         # fresh_qvals = np.array(fresh_qvals)
 
@@ -649,6 +649,7 @@ def deep_q_reinforce_oldmem(
                 f"Training (old) in: {timeend - batch_time:>5.4f}s. Fit duration:{timeend - time_pretrain:>5.4f}s, Loss: {history_ob.history['loss']}")
 
         losses.append(history_ob.history['loss'])
+
     timeend = time.time()
     RUN_LOGGER.info(f"Full (old) training took : {timeend - time_f_start :>6.3f}s")
     return np.mean(losses)
@@ -791,7 +792,7 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=2) as executor:
+    with ProcessPoolExecutor(max_workers=6) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
