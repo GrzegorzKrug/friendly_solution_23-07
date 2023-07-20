@@ -749,8 +749,8 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=400,
-                fulltrain_ntimes=100,
+                session_size=100,
+                fulltrain_ntimes=150,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
@@ -780,7 +780,7 @@ if __name__ == "__main__":
     time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:2200, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:1200, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
