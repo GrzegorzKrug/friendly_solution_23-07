@@ -95,7 +95,7 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
                 new_hidden_state[i][2] += 1
 
         elif act == 1:
-            pass
+            "IDLE"
 
         elif act == 2:
             "SELL"

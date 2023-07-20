@@ -128,20 +128,33 @@ def results_decorator(fun):
         path_loss = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-loss.csv')
         path_rewards = os.path.join(path_models, naming_ob.path, 'data', f'{cur_date}-rewards.csv')
 
+        was_qvals = os.path.isfile(path_qvals)
+        was_sess = os.path.isfile(path_sess)
+        was_times = os.path.isfile(path_times)
+        was_loss = os.path.isfile(path_loss)
+        was_rewards = os.path.isfile(path_rewards)
+
         with open(path_qvals, "at", buffering=1) as q_textfile:
-            arr = ['sess_eps', 'i_train_sess', 'agent_i', 'i_sample', 'q1', 'q2', 'q3']
-            q_textfile.write(','.join(arr) + "\n")
+            if not was_qvals:
+                arr = ['sess_eps', 'i_train_sess', 'agent_i', 'i_sample', 'q1', 'q2', 'q3']
+                q_textfile.write(','.join(arr) + "\n")
 
             with open(path_sess, "at", buffering=1) as sess_textfile:
-                arr2 = ['sess_eps', 'i_train_sess', 'sess_start', 'sess_end', 'agent_i', 'gain']
-                sess_textfile.write(','.join(arr2) + "\n")
+                if not was_sess:
+                    arr2 = ['sess_eps', 'i_train_sess', 'sess_start', 'sess_end', 'agent_i', 'gain']
+                    sess_textfile.write(','.join(arr2) + "\n")
 
                 with open(path_times, "at", buffering=1) as time_textfile:
-                    time_textfile.write("loop_time\n")
+                    if not was_times:
+                        time_textfile.write("loop_time\n")
+
                     with open(path_loss, "at", buffering=1) as loss_textfile:
-                        loss_textfile.write("sess_i,session_meanloss\n")
+                        if not was_loss:
+                            loss_textfile.write("sess_i,session_meanloss\n")
+
                         with open(path_rewards, "at", buffering=1) as rew_textfile:
-                            rew_textfile.write("sess_i,eps,i_sample,agent_i,reward,\n")
+                            if not was_rewards:
+                                rew_textfile.write("sess_i,eps,i_sample,agent_i,reward,\n")
 
                             return fun(
                                     *arg,
@@ -168,7 +181,7 @@ def train_qmodel(
         # Optional
         max_eps=0.8, override_eps=None,
         remember_fresh_fraction=0.2,
-        train_from_oldmem_fraction=0.4,
+        train_from_oldmem_fraction=0.2,
         old_memory_size=100_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
@@ -177,7 +190,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        retrain_from_all=3,
+        retrain_from_all=5,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -281,6 +294,7 @@ def train_qmodel(
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
+
             if not i_sample % WALK_INTERVAL_DEBUG:
                 RUN_LOGGER.debug(f"Walking sample: {i_sample}, memory: {len(fresh_memory.memory)}")
 
@@ -288,7 +302,7 @@ def train_qmodel(
                 future_segment3d = None
             else:
                 future_segment3d = datalist_2dsequences_ordered_train[i_sample + 1, :][np.newaxis, :, :]
-                futuresegment_stacked = np.tile(future_segment3d, (agents_n, 1, 1))
+                # futuresegment_stacked = np.tile(future_segment3d, (agents_n, 1, 1))
 
             "MOVE TO IF BELOW"
             # print("Discrete shape", agents_discrete_states.shape)
@@ -692,7 +706,7 @@ def single_model_training_function(
     global DEBUG_LOGGER
     RUN_LOGGER = logger.create_logger(number=counter)
     DEBUG_LOGGER = logger.create_debug_logger(number=counter)
-    DISCOUNT = 0.95
+    # DISCOUNT = 0  # .95
 
     try:
         gpus = tf.config.list_physical_devices('GPU')
@@ -700,12 +714,12 @@ def single_model_training_function(
             tf.config.experimental.set_memory_growth(gpu, True)
 
         (arch_num, time_feats, time_window, float_feats, out_size,
-         nodes, lr, batch, loss
+         nodes, lr, batch, loss, discount
          ) = model_params
         model = model_builder(
                 arch_num,
                 time_feats, time_window, float_feats, out_size,
-                loss, nodes, lr, batch
+                loss, nodes, lr
         )
         reward_fnum = 3
 
@@ -718,7 +732,7 @@ def single_model_training_function(
                 node_size=nodes, reward_fnum=reward_fnum,
 
                 learning_rate=lr, loss=loss, batch=batch,
-                discount=DISCOUNT,
+                discount=discount,
         )
     except Exception as exc:
         print(f"EXCEPTION when setting model: {exc}")
@@ -735,10 +749,10 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=1000,
+                session_size=500,
                 fulltrain_ntimes=100,
                 reward_f_num=reward_fnum,
-                discount=DISCOUNT,
+                discount=discount,
         )
     except Exception as exc:
         "PRINT TO SYS"
@@ -766,7 +780,7 @@ if __name__ == "__main__":
     time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:8000, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:2200, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")

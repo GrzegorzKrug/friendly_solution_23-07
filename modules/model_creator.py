@@ -175,6 +175,17 @@ def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
     return model
 
 
+@ArchRegister.register(103)
+@compile_decorator()
+def arch_103(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2_flats(
+            time_feats, time_window, float_feats, out_size, nodes, common_nodes=2,
+
+    )
+    return model
+
+
 def builder_2_flats(
         time_feats, time_window, float_feats, out_size, nodes,
         dens_on_left=1, dense_on_right=0, common_nodes=1,
@@ -350,22 +361,23 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
-    for arch_num in [101, 2, 102]:
-        for nodes in [300]:
-            for batch in [2000]:
-                for loss in ['huber', 'mae']:
-                    for lr in [1e-6, 1e-7, 1e-8]:
-                        print(f"Yielding params counter: {counter}")
-                        yield counter, (
-                                arch_num, time_feats, time_window, float_feats, out_size,
-                                nodes, lr, batch, loss
-                        )
-                        counter += 1
+    for arch_num in [103]:
+        for dc in [0, 0.8]:
+            for nodes in [300]:
+                for batch in [2000]:
+                    for loss in ['huber', 'mae', 'mse']:
+                        for lr in [1e-6, 1e-7]:
+                            print(f"Yielding params counter: {counter}")
+                            yield counter, (
+                                    arch_num, time_feats, time_window, float_feats, out_size,
+                                    nodes, lr, batch, loss,dc
+                            )
+                            counter += 1
 
 
 def model_builder(
         arch_num, time_feats, time_window, float_feats, out_size,
-        loss, nodes, lr, batch):
+        loss, nodes, lr):
     arch = ArchRegister.funcs[arch_num]
     # model = None
     model = arch(

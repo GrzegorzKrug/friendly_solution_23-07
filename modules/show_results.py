@@ -40,11 +40,11 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
     plt.plot(x_sess, sess_df['sess_eps'], label='Exploration', color='black', alpha=0.7)
     plt.plot(x_loss, loss_df['session_meanloss'], label='mean loss', color='red')
-    plt.legend(markerscale=4)
+    plt.legend(loc='upper left', markerscale=4)
 
     plt.subplot(3, 1, 2)
     plt.scatter(x_reward, rew_df['reward'], label='Rewards', alpha=0.2, s=5, color='blue')
-    plt.legend(markerscale=4)
+    plt.legend(loc='upper left', markerscale=4)
 
     plt.subplot(3, 1, 3)
     q_arr = qval_df.loc[:, ['q1', 'q2', 'q3']].to_numpy()
@@ -56,7 +56,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     x_qvl = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(qval_df))
     for qi, q in enumerate(q_arr.T):
         plt.scatter(x_qvl, q, label=f"Q{qi + 1}", s=5, alpha=0.8)
-    plt.legend(markerscale=4)
+    plt.legend(loc='upper left', markerscale=4)
 
     if naming:
         plt.suptitle(f"Model: {naming.path}")
@@ -71,7 +71,11 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
 for cur_model_path in folders:
     # name = os.path.basename(cur_model_path)
     # print(f"name: {name}")
-    naming = NamingClass.from_path(cur_model_path)
+    try:
+        naming = NamingClass.from_path(cur_model_path)
+    except IndexError as err:
+        print(f"Skipping results of folder: {cur_model_path} ")
+        continue
     # print(naming)
 
     res_files = glob.glob(os.path.join(cur_model_path, "data", "") + "*")

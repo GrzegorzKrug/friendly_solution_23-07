@@ -172,7 +172,10 @@ def reward_fun_3(
         # price_col_ind=0,
         # initial_cash=0,
 ):
-    """Allow buying only single asset"""
+    """
+        Allow buying only single asset.
+        Simple Gain, Simple Penalty
+    """
     cash, initial_cash, discrete_stock = hidden_arr
 
     # price_now = env_arr[0, price_col_ind]

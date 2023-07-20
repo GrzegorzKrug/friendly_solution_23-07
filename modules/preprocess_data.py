@@ -363,7 +363,10 @@ if __name__ == "__main__":
     "NORMALIZE"
     # print(folder_danych_clean)
     # path = os.path.join(folder_danych_clean, "test.csv")
-    segments, columns = generate_interpolated_data(dataframe=dataframe, include_time=False)
+    segments, columns = generate_interpolated_data(
+            dataframe=dataframe, include_time=False,
+            interval_s=10,
+    )
     # print(segment)
 
     "DATA Is not split by any days/weeks. 1 segment"
@@ -380,7 +383,7 @@ if __name__ == "__main__":
     print(f"price ind: {price_ind}, type: {type(price_ind)}")
     plt.figure(figsize=(20, 5), dpi=200)
     plt.grid()
-    plt.plot(segment[:50000, price_ind])
+    plt.plot(segment[:5000, price_ind])
     ax = plt.gca()
     ax.locator_params(nbins=30, axis='x')
     plt.tight_layout()
