@@ -239,7 +239,7 @@ def reward_fun_4(
     "KUP - 1"
     "Sprzedaj Zysk od sprzedaży"
 
-    cash, initial_cash, discrete_stock, last_buy_price = hidden_arr[:, :4]
+    cash, initial_cash, discrete_stock, last_buy_price = hidden_arr[:4]
 
     if done:
         end_cash = cash
