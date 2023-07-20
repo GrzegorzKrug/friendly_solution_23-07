@@ -370,7 +370,7 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
                             print(f"Yielding params counter: {counter}")
                             yield counter, (
                                     arch_num, time_feats, time_window, float_feats, out_size,
-                                    nodes, lr, batch, loss,dc
+                                    nodes, lr, batch, loss, dc
                             )
                             counter += 1
 

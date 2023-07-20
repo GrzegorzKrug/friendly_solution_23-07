@@ -91,5 +91,7 @@ for cur_model_path in folders:
         dates.add(dt_str)
 
     for dt_str in dates:
-        # print(f"Trying: {dt_str}")
-        make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
+        try:
+            make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
+        except Exception as err:
+            print(f"Can not plot: {cur_model_path}- {dt_str}: error ({err})")

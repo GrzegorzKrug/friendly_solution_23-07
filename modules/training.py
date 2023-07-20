@@ -750,7 +750,7 @@ def single_model_training_function(
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=100,
-                fulltrain_ntimes=150,
+                fulltrain_ntimes=200,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
