@@ -394,7 +394,7 @@ def train_qmodel(
             model_memory.migrate(sample(fresh_memory.memory, k))
 
             k = int(train_from_oldmem_fraction * len(model_memory))
-            if k > 200:
+            if k > 3000:
                 tra_all_numb = max(0, int(retrain_from_all))
                 print(f"Retraining for: {tra_all_numb + 1}")
                 for tri_i in range(tra_all_numb + 1):
