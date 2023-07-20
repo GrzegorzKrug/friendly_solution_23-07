@@ -721,7 +721,7 @@ def single_model_training_function(
                 time_feats, time_window, float_feats, out_size,
                 loss, nodes, lr
         )
-        reward_fnum = 3
+        reward_fnum = 4
 
         RUN_LOGGER.info(
                 f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
