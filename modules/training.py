@@ -167,13 +167,13 @@ def train_qmodel(
 
         # Optional
         max_eps=0.8, override_eps=None,
-        remember_fresh_fraction=0.3,
+        remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
-        old_memory_size=150_000,
+        old_memory_size=100_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
-        reward_f_num=2,
+        reward_f_num=3,
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
@@ -396,7 +396,7 @@ def train_qmodel(
             k = int(train_from_oldmem_fraction * len(model_memory))
             if k > 200:
                 tra_all_numb = max(0, int(retrain_from_all))
-                print(f"Retraining for: {tra_all_numb+1}")
+                print(f"Retraining for: {tra_all_numb + 1}")
                 for tri_i in range(tra_all_numb + 1):
                     "Pick random samples"
                     old_samples = sample(model_memory.memory, k)
@@ -452,7 +452,7 @@ def deep_q_reinforce_fresh(
     RUN_LOGGER.debug(
             f"Trying to reinforce (fresh). MiniBatch:{mini_batchsize}. Dc: {discount}, samples: {len(fresh_samples)}")
 
-    split_inds = get_splits(len(fresh_samples), 50000)
+    split_inds = get_splits(len(fresh_samples), 20000)
     shuffle(fresh_samples)
 
     losses = []
@@ -621,7 +621,6 @@ def deep_q_reinforce_oldmem(
         # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
         # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
 
-
         max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
         new_qvals = sub_deepq_func(actions, discount, dones, current_qvals, max_future_argq, rewards)
 
@@ -737,7 +736,7 @@ def single_model_training_function(
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=1000,
-                fulltrain_ntimes=200,
+                fulltrain_ntimes=100,
                 reward_f_num=reward_fnum,
                 discount=DISCOUNT,
         )
@@ -764,10 +763,10 @@ if __name__ == "__main__":
     print(f"Price `last` at col: {price_id}")
     train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
 
-    time_wind = 60
+    time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:30000, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:8000, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -778,7 +777,7 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")

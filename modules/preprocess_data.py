@@ -365,13 +365,26 @@ if __name__ == "__main__":
     # path = os.path.join(folder_danych_clean, "test.csv")
     segments, columns = generate_interpolated_data(dataframe=dataframe, include_time=False)
     # print(segment)
+
+    "DATA Is not split by any days/weeks. 1 segment"
     segment = segments[0]
     columns = columns[0]
     print("final shape:", segment.shape)
 
     np.save(path_data_clean_folder + "int_norm.arr.npy", segment)
     np.save(path_data_clean_folder + "int_norm.columns.npy", columns)
-    # print(columns)
+
+    print(columns)
+    columns: list
+    price_ind = columns.index('last')
+    print(f"price ind: {price_ind}, type: {type(price_ind)}")
+    plt.figure(figsize=(20, 5), dpi=200)
+    plt.grid()
+    plt.plot(segment[:50000, price_ind])
+    ax = plt.gca()
+    ax.locator_params(nbins=30, axis='x')
+    plt.tight_layout()
+    plt.savefig(path_data_clean_folder + "last.png")
     # print(dataframe.columns)
 
     # segment = segment[:1000, :]
