@@ -174,9 +174,10 @@ def train_qmodel(
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
         reward_f_num=2,
-        discount=0.1,
+        discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
+        retrain_from_all=3,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -194,14 +195,12 @@ def train_qmodel(
 ):
     RUN_LOGGER.debug(
             f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
-    # N_SAMPLES = (data_list_2darr.shape[0] - time_frame)
     N_SAMPLES = len(datalist_2dsequences_ordered_train)
     WALK_INTERVAL_DEBUG = 250
     RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
-    # print(normed_data)
-    # print(normed_data.shape)
-    path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
 
+    "GET MODEL PATH"
+    path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
     if os.path.isfile(path_this_model_folder + "weights.keras"):
         RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
         model_keras.load_weights(path_this_model_folder + "weights.keras")
@@ -396,14 +395,18 @@ def train_qmodel(
 
             k = int(train_from_oldmem_fraction * len(model_memory))
             if k > 200:
-                old_samples = sample(model_memory.memory, k)
-                loss = deep_q_reinforce_oldmem(
-                        model_keras, old_samples,
-                        discount=discount,
-                        env_data_2d=datalist_2dsequences_ordered_train,
-                        mini_batchsize=int(naming_ob.batch),
-                )
-                loss_file.write(f"{i_train_sess},{loss}\n")
+                tra_all_numb = max(0, int(retrain_from_all))
+                print(f"Retraining for: {tra_all_numb+1}")
+                for tri_i in range(tra_all_numb + 1):
+                    "Pick random samples"
+                    old_samples = sample(model_memory.memory, k)
+                    loss = deep_q_reinforce_oldmem(
+                            model_keras, old_samples,
+                            discount=discount,
+                            env_data_2d=datalist_2dsequences_ordered_train,
+                            mini_batchsize=int(naming_ob.batch),
+                    )
+                    loss_file.write(f"{i_train_sess},{loss}\n")
 
         "RESOLVE END SCORE"
 
@@ -535,10 +538,6 @@ def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, reward
     #         qv_row[act] = targ
 
     new_vector = rewards + discount * max_future_argq * (1 - dones.astype(int))
-    # print("New vector")
-    # print(new_vector[:10])
-    # print(new_vector.shape)
-    # curr_qvals[:, actions] = new_vector
     for i, (ac, v) in enumerate(zip(actions, new_vector)):
         curr_qvals[i, ac] = v
 
@@ -694,6 +693,7 @@ def single_model_training_function(
     global DEBUG_LOGGER
     RUN_LOGGER = logger.create_logger(number=counter)
     DEBUG_LOGGER = logger.create_debug_logger(number=counter)
+    DISCOUNT = 0.95
 
     try:
         gpus = tf.config.list_physical_devices('GPU')
@@ -719,6 +719,7 @@ def single_model_training_function(
                 node_size=nodes, reward_fnum=reward_fnum,
 
                 learning_rate=lr, loss=loss, batch=batch,
+                discount=DISCOUNT,
         )
     except Exception as exc:
         print(f"EXCEPTION when setting model: {exc}")
@@ -738,6 +739,7 @@ def single_model_training_function(
                 session_size=1000,
                 fulltrain_ntimes=200,
                 reward_f_num=reward_fnum,
+                discount=DISCOUNT,
         )
     except Exception as exc:
         "PRINT TO SYS"

@@ -24,6 +24,7 @@ class NamingClass:
 
             optimizer="",
             reward_fnum="",
+            discount="",
             postfix="",
     ):
         self.arch_series = str(arch_series)
@@ -42,6 +43,7 @@ class NamingClass:
         "Optional"
         self.optimizer = str(optimizer)
         self.reward_fnum = str(reward_fnum)
+        self.discount = str(discount)
         self.postfix = str(postfix)
 
     @classmethod
@@ -83,6 +85,7 @@ class NamingClass:
 
         text += f"{self.PAR_SEP}op{self.VAL_SEP}{self.optimizer}"
         text += f"{self.PAR_SEP}rf{self.VAL_SEP}{self.reward_fnum}"
+        text += f"{self.PAR_SEP}dc{self.VAL_SEP}{self.discount}"
         text += f"{self.PAR_SEP}pf{self.VAL_SEP}{self.postfix}"
 
         return text
@@ -108,6 +111,7 @@ class NamingClass:
 
                 self.optimizer,
                 self.reward_fnum,
+                self.discount,
                 self.postfix,
         )
 

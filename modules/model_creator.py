@@ -153,6 +153,84 @@ def arch_7(time_feats, time_window, float_feats, out_size, nodes=20):
     return model
 
 
+@ArchRegister.register(101)
+@compile_decorator()
+def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2_flats(
+            time_feats, time_window, float_feats, out_size, nodes,
+
+    )
+    return model
+
+
+@ArchRegister.register(102)
+@compile_decorator()
+def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2_flats(
+            time_feats, time_window, float_feats, out_size, nodes,
+            dense_on_right=1,
+    )
+    return model
+
+
+def builder_2_flats(
+        time_feats, time_window, float_feats, out_size, nodes,
+        dens_on_left=1, dense_on_right=0, common_nodes=1,
+        act_L='relu', act_R='relu',
+):
+    """
+    2 Pipe lines
+    Args:
+        float_feats:
+        nodes:
+        out_size:
+        time_feats:
+        time_window:
+        dens_on_left:
+        dense_on_right:
+        common_nodes:
+
+    Returns:
+
+    """
+    time_input = Input(shape=(time_window, time_feats), )
+    float_input = Input(shape=(float_feats,), )
+
+    "Time series LSTM"
+    # input_L = tf.reshape(time_input, (-1, time_window, time_feats))
+    flat_input = Flatten()(time_input)
+    if dens_on_left > 1:
+        den_L = Dense(nodes, activation=act_L)(flat_input)
+        for i in range(dens_on_left - 2):
+            den_L = Dense(nodes, activation=act_L)(den_L)
+        den_L = Dense(nodes, activation=act_L)(den_L)
+    else:
+        den_L = Dense(nodes, activation=act_L)(flat_input)
+        # print("LSTM")
+        # print(den_L.shape)
+
+    "Float section"
+    fl_dense = float_input
+    if dense_on_right > 0:
+        for i in range(dense_on_right):
+            fl_dense = Dense(nodes, activation=act_R)(fl_dense)
+
+    conc = Concatenate(axis=1)([den_L, fl_dense])
+
+    "Common section"
+    dens = conc
+    if common_nodes > 0:
+        for i in range(common_nodes):
+            dens = Dense(nodes, activation='relu')(dens)
+
+    last = Dense(out_size, activation='linear')(dens)
+    "Assign inputs / outputs"
+    model = Model(inputs=[time_input, float_input], outputs=last)
+    return model
+
+
 def builder_2pipes(
         time_feats, time_window, float_feats, out_size, nodes,
         lst_on_left=1, float_only_nodes=0, common_nodes=1):
@@ -183,8 +261,8 @@ def builder_2pipes(
         lstm_l = LSTM(nodes)(lstm_l)
     else:
         lstm_l = LSTM(nodes)(ls_inp)
-        print("LSTM")
-        print(lstm_l.shape)
+        # print("LSTM")
+        # print(lstm_l.shape)
 
     "Float section"
     fl_dense = float_input
@@ -272,10 +350,10 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
-    for arch_num in [2, 6]:
-        for nodes in [200, 400]:
-            for batch in [1000, 2000]:
-                for loss in ['mae', 'mse']:
+    for arch_num in [101, 2, 102]:
+        for nodes in [300]:
+            for batch in [2000]:
+                for loss in ['huber', 'mae']:
                     for lr in [1e-7, 1e-8]:
                         print(f"Yielding params counter: {counter}")
                         yield counter, (
@@ -311,27 +389,4 @@ def plot_all_architectures():
 
 
 if __name__ == "__main__":
-    # naming = NamingClass(2, "", 1, 5, 1, 3, 1, postfix="")
-
-    # samples = 2
-    time_window = 100
-    time_feats = 10
-    float_f = 1
-    out_size = 5
-    reward_fn = 1
-
-    # arch_1(1, 1, 1, 1, compile=False)
-    for i, compiled_model, (arch_i, loss, nodes, batch, lr) in grid_models_generator(time_feats,
-                                                                                     time_window,
-                                                                                     float_f,
-                                                                                     out_size):
-        print(i, arch_i, loss, nodes, batch, lr)
-        naming = NamingClass(
-                arch_i, "", time_feats, time_window, float_f, out_size, nodes,
-                lr, loss, batch,
-        )
-        os.makedirs(models_folder + naming.path, exist_ok=True)
-        compiled_model: keras.Model
-        compiled_model.save_weights(models_folder + naming.path + os.path.sep + "weights.keras")
-
-    # plot_all_architectures()
+    plot_all_architectures()
