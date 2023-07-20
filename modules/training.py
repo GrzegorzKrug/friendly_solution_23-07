@@ -179,7 +179,7 @@ def train_qmodel(
         allow_train=True, model_memory: ModelMemory = None,
 
         # Optional
-        max_eps=0.8, override_eps=None,
+        max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.2,
         old_memory_size=100_000,

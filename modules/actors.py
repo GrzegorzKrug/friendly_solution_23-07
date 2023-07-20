@@ -9,8 +9,8 @@ def initialize_agents(agents_n, start_stock=0):
         start_stock:
 
     Returns:
-        Discrete state: Integer of assets
-        Hidden state: [Cash, starting cash, cargo]
+        Discrete state: [bool cargo,]
+        Hidden state: [Cash, starting cash, cargo, buy price]
 
     """
     # states = np.random.random((agents_n, 1)) * 2 + 1
@@ -25,7 +25,8 @@ def initialize_agents(agents_n, start_stock=0):
 
     cash = np.random.random((agents_n, 1)) + 1
     cargo = np.zeros((agents_n, 1), dtype=int) + start_stock
-    hidden_state = np.concatenate([cash, cash.copy(), cargo], axis=1)
+    buy_price = cargo.astype(float)
+    hidden_state = np.concatenate([cash, cash.copy(), cargo, buy_price], axis=1)
 
     return disc_state, hidden_state
 
@@ -43,6 +44,8 @@ def resolve_actions_multibuy(cur_step_price, discrete_states, hidden_states, act
     Returns:
 
     """
+    raise NotImplemented("Fix last buy price ")
+
     new_disc_state = discrete_states.copy()
     new_hidden_state = hidden_states.copy()
     for i, (dsc_state, hid_state, act) in enumerate(zip(discrete_states, hidden_states, actions)):
@@ -93,21 +96,27 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
                 new_disc_state[i] = 1
                 new_hidden_state[i][0] -= cur_step_price * price_mod
                 new_hidden_state[i][2] += 1
+                new_hidden_state[i][3] = cur_step_price  # Remember buy price
 
         elif act == 1:
             "IDLE"
 
         elif act == 2:
             "SELL"
-            if new_hidden_state[i][2] <= 0:
-                new_hidden_state[i][2] = 0
-            else:
-                new_hidden_state[i][2] -= 1
-                new_hidden_state[i][0] += cur_step_price * price_mod
 
-                if new_hidden_state[i][2] > 0:
-                    new_disc_state[i] = 1
-                else:
-                    new_disc_state[i] = 0
+            new_disc_state[i] = 0  # 0 Assets in state
+            new_hidden_state[i][3] = 0  # Buy price 0
+
+            if new_hidden_state[i][2] <= 0:
+                "Can not sell"
+                new_hidden_state[i][2] = 0  # Set 0 asset
+            else:
+                "Can sell"
+                new_hidden_state[i][0] += cur_step_price * price_mod  # Gain cash wallet
+                new_hidden_state[i][2] -= 1  # Less cargo
+
+                # if new_hidden_state[i][2] > 0:
+                #     new_disc_state[i] = 1
+                # else:
 
     return new_disc_state, new_hidden_state

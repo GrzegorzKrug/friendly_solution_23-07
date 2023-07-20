@@ -81,7 +81,7 @@ def reward_fun_1(
     # cash, cargo, last_sell, last_buy, last_transaction_price = wallet
     # time_now = last_row[0]
     # price_sample = last_row[4]
-    cash, initial_cash, discrete_stock = hidden_arr
+    cash, initial_cash, discrete_stock = hidden_arr[:, :3]
 
     # price_now = env_arr[0, price_col_ind]
     # print(f"Price now:", price_now)
@@ -116,7 +116,7 @@ def reward_fun_2(
         # initial_cash=0,
 ):
     """Allow buying only single asset"""
-    cash, initial_cash, discrete_stock = hidden_arr
+    cash, initial_cash, discrete_stock = hidden_arr[:, :3]
 
     # price_now = env_arr[0, price_col_ind]
     # print(f"Price now:", price_now)
@@ -176,7 +176,7 @@ def reward_fun_3(
         Allow buying only single asset.
         Simple Gain, Simple Penalty
     """
-    cash, initial_cash, discrete_stock = hidden_arr
+    cash, initial_cash, discrete_stock = hidden_arr[:, :3]
 
     # price_now = env_arr[0, price_col_ind]
     # print(f"Price now:", price_now)
@@ -218,6 +218,67 @@ def reward_fun_3(
                 return INVALID_MOVE, False
 
             return price, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
+
+
+@RewardStore.add(4)
+# @numba.njit()
+def reward_fun_4(
+        env_arr, discrete_state, action: int,
+        hidden_arr,
+        done=False,
+        price=0,
+        # price_col_ind=0,
+        # initial_cash=0,
+):
+    """
+        Allow buying only single asset.
+        Sugestie
+    """
+    "KUP - 1"
+    "Sprzedaj Zysk od sprzedaży"
+
+    cash, initial_cash, discrete_stock, last_buy_price = hidden_arr[:, :4]
+
+    if done:
+        end_cash = cash
+        gain_at_end_of_day = (end_cash - initial_cash) * 5
+        asset_val = price * float(discrete_stock)
+        if action == 0:
+            "BUY"
+            return BASE_PENALTY + gain_at_end_of_day - asset_val, True
+
+        elif action == 1:
+            "PASS"
+            return gain_at_end_of_day - asset_val, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE + gain_at_end_of_day, False
+            else:
+                return gain_at_end_of_day + asset_val, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
+    else:
+        if action == 0:
+            "BUY"
+            if discrete_stock == 0:
+                return 1, True
+            else:
+                return INVALID_MOVE, False
+
+        elif action == 1:
+            "PASS"
+            return 0, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE, False
+
+            return price - last_buy_price, True
         else:
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 
