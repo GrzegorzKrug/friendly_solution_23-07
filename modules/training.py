@@ -749,7 +749,7 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=500,
+                session_size=400,
                 fulltrain_ntimes=100,
                 reward_f_num=reward_fnum,
                 discount=discount,
@@ -791,7 +791,7 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=2) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
