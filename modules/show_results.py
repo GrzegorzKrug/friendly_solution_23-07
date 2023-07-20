@@ -26,8 +26,8 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     qval_df = pd.read_csv(os.path.join(folder, f"{dt_str}-qvals.csv"))
     sess_df = pd.read_csv(os.path.join(folder, f"{dt_str}-sess.csv"))
 
-    print(sess_df)
-    print(sess_df.shape)
+    # print(sess_df)
+    # print(sess_df.shape)
 
     x_sess = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(sess_df))
     x_reward = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(rew_df))
@@ -90,8 +90,10 @@ for cur_model_path in folders:
         dt_str = f"{dt}-{tm}"
         dates.add(dt_str)
 
+    print(f"Plotting: {naming.path}")
     for dt_str in dates:
         try:
             make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
+            print(f"Plotted: {dt_str}")
         except Exception as err:
             print(f"Can not plot: {cur_model_path}- {dt_str}: error ({err})")
