@@ -259,7 +259,7 @@ def single_model_evaluate(
                 time_feats, time_window, float_feats, out_size,
                 loss, nodes, lr
         )
-        reward_fnum = 3
+        reward_fnum = 4
 
         naming_ob = NamingClass(
                 arch_num, ITERATION,
