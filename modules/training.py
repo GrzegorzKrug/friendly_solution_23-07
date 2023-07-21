@@ -180,9 +180,9 @@ def train_qmodel(
 
         # Optional
         max_eps=0.5, override_eps=None,
-        remember_fresh_fraction=0.3,
-        train_from_oldmem_fraction=0.2,
-        old_memory_size=100_000,
+        remember_fresh_fraction=0.15,
+        train_from_oldmem_fraction=0.3,
+        old_memory_size=75_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -741,8 +741,8 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=200,
-                fulltrain_ntimes=500,
+                session_size=500,
+                fulltrain_ntimes=300,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
@@ -772,7 +772,7 @@ if __name__ == "__main__":
     time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:8200, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:7500, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")

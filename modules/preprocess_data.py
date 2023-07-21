@@ -383,7 +383,7 @@ if __name__ == "__main__":
     print(f"price ind: {price_ind}, type: {type(price_ind)}")
     plt.figure(figsize=(20, 5), dpi=200)
     plt.grid()
-    plt.plot(segment[:5000, price_ind])
+    plt.plot(segment[:7500, price_ind])
     ax = plt.gca()
     ax.locator_params(nbins=30, axis='x')
     plt.tight_layout()
