@@ -165,7 +165,8 @@ def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
         x.append(window)
         sub_arr = array[i + seq_size + offset_arr, :]
         y.append(sub_arr)
-    return np.array(x, dtype=np.float16), np.array(y, np.float16)
+
+    return np.array(x, dtype=np.float32), np.array(y, np.float32)
 
 
 def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_amount=0):
@@ -222,6 +223,7 @@ def get_eps(n, epoch_max, repeat=9, eps_power=1.4, max_explore=0.8):
         return (1 - np.mod(n, disc_step) / (disc_step - 1)) ** eps_power * max_explore
     return val
 
+
 def load_data_split(path, train_split=0.65, ):
     arr = np.load(path, allow_pickle=True)
 
@@ -231,6 +233,7 @@ def load_data_split(path, train_split=0.65, ):
     df_test = arr[pivot:, :]
     print(f"Train: {df_train.shape}, Test: {df_test.shape}")
     return df_train, df_test
+
 
 if __name__ == "__main__":
     M = 50

@@ -137,7 +137,7 @@ def evaluate(
         plot_array = np.zeros((0, len(labels)), dtype=float)
         # print()
         # print(f"Session: {i_train_sess}")
-        print(f"Walking start sample: {ses_start}")
+        # print(f"Walking start sample: {ses_start}")
 
         for i_sample in range(ses_start, ses_end - 1):  # Never in done state
             # print(f"Sample: {i_sample}")
@@ -218,8 +218,10 @@ def evaluate(
         plt.legend()
 
         plt.subplot(3, 1, 3)
-        for i, lb in enumerate(labels[5:-1], 3):
+        for i, lb in enumerate(labels[5:-1], 5):
+            lb = {5: "Q1:Buy", 6: "Q2:Pass", 7: "Q3:Sell"}[act]
             plt.plot(x, plot_array[:, i], label=lb, color=colors[i], alpha=0.8, linewidth=2)
+
         plt.title("Q vals")
         plt.legend()
 
@@ -323,7 +325,7 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=5) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             proc = executor.submit(
@@ -341,7 +343,7 @@ if __name__ == "__main__":
         # result = concurrent.futures.wait(process_list)
         # print("Waiting finished.")
         for proc in process_list:
-            print(f"Waiting for Proc {proc}")
+            # print(f"Waiting for Proc {proc}")
             proc.result()
             print(f"Proc {proc} has finished.")
         # for f in as_completed(process_list):

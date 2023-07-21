@@ -10,7 +10,7 @@ from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
-from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward
+from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split
 from reward_functions import RewardStore
 
 from functools import wraps
@@ -180,7 +180,7 @@ def train_qmodel(
 
         # Optional
         max_eps=0.5, override_eps=None,
-        remember_fresh_fraction=0.2,
+        remember_fresh_fraction=0.3,
         train_from_oldmem_fraction=0.2,
         old_memory_size=100_000,
         # refresh_n_times=3,
@@ -190,7 +190,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        retrain_from_all=1,
+        retrain_from_all=2,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -581,7 +581,7 @@ def deep_q_reinforce_oldmem(
     # old_samples = old_memory.random_samples(0.99)
     # RUN_LOGGER.debug(f"Samples amount: {len(old_samples)}")
 
-    split_inds = get_splits(len(old_samples), 50000)
+    split_inds = get_splits(len(old_samples), 20000)
 
     losses = []
     time_f_start = time.time()
@@ -686,18 +686,6 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
             yield [*zip(*frame1, *frame2)]
 
 
-def load_data_split(path, train_split=0.65, ):
-    arr = np.load(path, allow_pickle=True)
-    # df = pd.read_csv(path)
-
-    pivot = int(len(arr) * train_split)
-
-    df_train = arr[:pivot, :]
-    df_test = arr[pivot:, :]
-    print(f"Train: {df_train.shape}, Test: {df_test.shape}")
-    return df_train, df_test
-
-
 def single_model_training_function(
         counter, model_params, train_sequences, price_id,
         main_logger: logger
@@ -784,7 +772,7 @@ if __name__ == "__main__":
     time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:2200, :], time_wind, [1])
+    train_sequences, _ = to_sequences_forward(train_data[:8200, :], time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -795,10 +783,12 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=6) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
+            # if counter < 13:
+            #     continue
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_id,
                     MainLogger
