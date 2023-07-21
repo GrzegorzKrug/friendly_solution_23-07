@@ -361,12 +361,12 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 1
-    for arch_num in [103]:
-        for dc in [0.9, 0]:
-            for nodes in [300]:
-                for batch in [2000]:
+    for batch in [1000, 2000]:
+        for arch_num in [101, 103]:
+            for dc in [0.9]:
+                for nodes in [300]:
                     for loss in ['huber', 'mae', 'mse']:
-                        for lr in [1e-5, 1e-6, 1e-7]:
+                        for lr in [1e-4, 1e-5, 1e-6, 1e-7]:
                             print(f"Yielding params counter: {counter}")
                             yield counter, (
                                     arch_num, time_feats, time_window, float_feats, out_size,

@@ -190,7 +190,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        retrain_from_all=5,
+        retrain_from_all=1,
 
         # PARAMS ==============
         # time_window_size=10,
