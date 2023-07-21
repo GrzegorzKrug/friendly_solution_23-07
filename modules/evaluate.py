@@ -118,7 +118,7 @@ def evaluate(
             (0, 0, 0),
     )
 
-    for i_train_sess, ses_start in enumerate([0, 500, 1000, 1500]):
+    for i_train_sess, ses_start in enumerate([0, 500, 1000, 1500, 2500, 4000, 5000]):
         # last_start = N_SAMPLES - session_size
         # if i_train_sess == 0:
         #     ses_start = 0
@@ -219,7 +219,7 @@ def evaluate(
 
         plt.subplot(3, 1, 3)
         for i, lb in enumerate(labels[5:-1], 5):
-            lb = {5: "Q1:Buy", 6: "Q2:Pass", 7: "Q3:Sell"}[act]
+            lb = {5: "Q1:Buy", 6: "Q2:Pass", 7: "Q3:Sell"}[i]
             plt.plot(x, plot_array[:, i], label=lb, color=colors[i], alpha=0.8, linewidth=2)
 
         plt.title("Q vals")
@@ -230,7 +230,7 @@ def evaluate(
         plt.tight_layout()
         plt.savefig(os.path.join(path_this_model_folder, "data", f"eval_plot-{i_train_sess}.png"))
         plt.close()
-        print(f"Saved fig: {path_this_model_folder} - eval - {i_train_sess}")
+        print(f"Saved fig: {naming_ob.path} - eval - {i_train_sess}")
 
     # if allow_train:
     #     model_keras.save_weights(path_this_model_folder + "weights.keras")
@@ -290,10 +290,14 @@ def single_model_evaluate(
         )
     except Exception as exc:
         "PRINT TO SYS"
-        print(f"EXCEPTION: {exc} {exc.__traceback__}")
-        stbbb = traceback.extract_tb(exc.__traceback__, limit=10)
-        for ftb in stbbb:
-            print(ftb)
+        print(f"EXCEPTION during evaluation: {exc} {exc.__traceback__}")
+        # print(traceback.print_last())
+        text = '\n'.join(traceback.format_tb(exc.__traceback__, limit=None))
+        print(text)
+        print("^^^^")
+        # stbbb = traceback.extract_tb(exc.__traceback__, limit=10)
+        # for ftb in stbbb:
+        #     print(ftb)
         # print(stbbb)
 
     "Clear memory?"
@@ -345,9 +349,10 @@ if __name__ == "__main__":
         for proc in process_list:
             # print(f"Waiting for Proc {proc}")
             proc.result()
-            print(f"Proc {proc} has finished.")
+            # print(f"Proc {proc} has finished.")
         # for f in as_completed(process_list):
         #     print(f.result())
+        print("All processes have ended...")
 
     # for res in process_list:
     #     print(res)
