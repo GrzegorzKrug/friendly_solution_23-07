@@ -238,7 +238,7 @@ def train_qmodel(
 
     reward_fun = RewardStore.get(reward_f_num)
 
-    out_size = int(naming_ob.outsize)
+    out_space = int(naming_ob.outsize)
     # qv_dataframe = pd.DataFrame(columns=['eps', 'sess_i', 'sample_n', 'buy', 'idle', 'sell'])
     # session_dataframe = pd.DataFrame(columns=['eps', 'session_num', 'ind_start', 'ind_end', 'gain'])
 
@@ -316,7 +316,7 @@ def train_qmodel(
             "Select Action"
             if allow_train and session_eps > 0 and session_eps > np.random.random():
                 "Random Action"
-                actions = np.random.randint(0, out_size, agents_n)
+                actions = np.random.randint(0, out_space, agents_n)
                 # print(f"Random actions: {actions}")
             # elif FORCE_RANDOM:
             #     actions = np.random.randint(0, 3, agents_n)
@@ -442,6 +442,9 @@ def train_qmodel(
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")
         RUN_LOGGER.info(f"Saved weights: {naming_ob}")
+
+    del model_memory
+    del fresh_memory
 
 
     # return history, best, best_all

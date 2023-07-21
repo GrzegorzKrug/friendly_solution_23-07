@@ -26,14 +26,10 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     qval_df = pd.read_csv(os.path.join(folder, f"{dt_str}-qvals.csv"))
     sess_df = pd.read_csv(os.path.join(folder, f"{dt_str}-sess.csv"))
 
-    # print(sess_df)
-    # print(sess_df.shape)
-
     x_sess = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(sess_df))
     x_reward = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(rew_df))
     x_loss = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(loss_df))
     # sample_min
-
 
     plt.subplots(3, 1, figsize=(25, 12), height_ratios=[5, 2, 6], sharex=True)
     plt.subplot(3, 1, 1)
@@ -65,6 +61,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     plt.xlabel("Epoch")
     plt.tight_layout()
     plt.savefig(os.path.join(folder, f"sess-{dt_str}.png"))
+    plt.close()
     # print(sess_df)
 
 
@@ -79,9 +76,7 @@ for cur_model_path in folders:
     # print(naming)
 
     res_files = glob.glob(os.path.join(cur_model_path, "data", "") + "*")
-    # print(res_files)
     file_names = [os.path.basename(fil) for fil in res_files]
-    # print(file_names[0])
     dates = set()
     for file in file_names:
         if not file.endswith('.csv'):
