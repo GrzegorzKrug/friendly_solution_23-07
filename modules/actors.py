@@ -88,15 +88,15 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
     """
     new_disc_state = discrete_states.copy()
     new_hidden_state = hidden_states.copy()
-    for i, (dsc_state, hid_state, act) in enumerate(zip(discrete_states, hidden_states, actions)):
+    for ag_i, (dsc_state, hid_state, act) in enumerate(zip(discrete_states, hidden_states, actions)):
         if act == 0:
             "BUY"
-            if new_disc_state[i] == 0:
+            if new_disc_state[ag_i] == 0:
                 "BUY only if have none"
-                new_disc_state[i] = 1
-                new_hidden_state[i][0] -= cur_step_price * price_mod
-                new_hidden_state[i][2] += 1
-                new_hidden_state[i][3] = cur_step_price  # Remember buy price
+                new_disc_state[ag_i] = 1
+                new_hidden_state[ag_i][0] -= cur_step_price * price_mod
+                new_hidden_state[ag_i][2] += 1
+                new_hidden_state[ag_i][3] = cur_step_price  # Remember buy price
 
         elif act == 1:
             "IDLE"
@@ -104,16 +104,16 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
         elif act == 2:
             "SELL"
 
-            new_disc_state[i] = 0  # 0 Assets in state
-            new_hidden_state[i][3] = 0  # Buy price 0
+            new_disc_state[ag_i] = 0  # 0 Assets in state
+            new_hidden_state[ag_i][3] = 0  # Buy price 0
 
-            if new_hidden_state[i][2] <= 0:
+            if new_hidden_state[ag_i][2] <= 0:
                 "Can not sell"
-                new_hidden_state[i][2] = 0  # Set 0 asset
+                new_hidden_state[ag_i][2] = 0  # Set 0 asset
             else:
                 "Can sell"
-                new_hidden_state[i][0] += cur_step_price * price_mod  # Gain cash wallet
-                new_hidden_state[i][2] -= 1  # Less cargo
+                new_hidden_state[ag_i][0] += cur_step_price * price_mod  # Gain cash wallet
+                new_hidden_state[ag_i][2] -= 1  # Less cargo
 
                 # if new_hidden_state[i][2] > 0:
                 #     new_disc_state[i] = 1
