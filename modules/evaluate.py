@@ -9,7 +9,10 @@ from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
 from common_settings import ITERATION, path_data_clean_folder, path_models
-from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split
+from common_functions import (
+    NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split,
+    unpack_evals_to_table,
+)
 from reward_functions import RewardStore
 
 from functools import wraps
@@ -48,6 +51,7 @@ def evaluate(
         train_from_oldmem_fraction=0.2,
 
         reward_f_num=3,
+        game_n=3,
         # discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
@@ -117,8 +121,25 @@ def evaluate(
             (0, 0, 0),
             (0, 0, 0),
     )
+    starts = []
+    if game_n <= 0:
+        starts = [0]
+    elif game_n == 3:
+        starts = [0, 500, 1000]
+    elif game_n == 4:
+        starts = [0, 500, 1000, 1500]
+    elif game_n == 5:
+        starts = [0, 500, 1000, 1500, 3000]
+    elif game_n == 7:
+        starts = [0, 500, 1000, 1500, 3000, 4000, 5000]
+    else:
+        starts = [0]
+        print(f"Unsuported games amount: {game_n}")
+        # raise ValueError(f"Not supported amount of games: {game_n}")
 
-    for i_train_sess, ses_start in enumerate([0, 500, 1000, 1500, 2500, 4000, 5000]):
+    eval_values = []
+
+    for i_train_sess, ses_start in enumerate(starts):
         # last_start = N_SAMPLES - session_size
         # if i_train_sess == 0:
         #     ses_start = 0
@@ -132,6 +153,9 @@ def evaluate(
         "0, 1, 2"
         "Sell, Pass, Buy"
         starttime = time.time()
+
+        how_many_actions = 0
+        how_many_valid = 0
 
         labels = ['i_sample', 'Cash', 'Cargo', 'Action', 'Gain', 'Q1', 'Q2', 'Q3', 'price']
         plot_array = np.zeros((0, len(labels)), dtype=float)
@@ -160,9 +184,19 @@ def evaluate(
             )
             actions = np.argmax(q_vals, axis=-1)
 
+            if actions[0] in [0, 2]:
+                how_many_actions += 1
+
+            if actions[0] == 0 and hidden_states[0, 2] == 0:
+                "Buy when 0"
+                how_many_valid += 1
+            elif actions[0] == 2 and hidden_states[0, 2] == 1:
+                "Sell when 1"
+                how_many_valid += 1
+
             # rewards = []
             # valids = []
-            env_state_arr = timesegment_2d
+            # env_state_arr = timesegment_2d
 
             # cur_step_price = env_state_arr[0, price_col_ind]
             cur_step_price = datalist_2dsequences_ordered_train[i_sample, 0, 3]
@@ -188,10 +222,12 @@ def evaluate(
             agents_discrete_states = new_states
             hidden_states = new_hidden_states
 
-        tend_walking = time.time()
+        # tend_walking = time.time()
+        # print(f"End cargo: {hidden_states[0, 2]} and price: {cur_step_price}")
+        end_gain = hidden_states[0, 0] - hidden_states[0, 1] + hidden_states[0, 2] * cur_step_price
 
         plt.subplots(3, 1, figsize=(20, 10), dpi=200, height_ratios=[3, 2, 1])
-        gain = hidden_states[:, 0] - hidden_states[:, 1]
+        # gain = hidden_states[:, 0] - hidden_states[:, 1]
         x = plot_array[:, 0]
 
         plt.subplot(3, 1, 1)
@@ -202,14 +238,18 @@ def evaluate(
             xa = x[mask]
             ya = plot_array[mask, -1]
             lb = {0: "Buy", 1: "Pass", 2: "Sell"}[act]
-            plt.scatter(xa, ya, label=f"Action: {lb}", s=30)
+            s = {0: 35, 1: 15, 2: 40}[act]
+            plt.scatter(xa, ya, label=f"Action: {lb}", s=s)
+
+        # print()
+        eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 6)))
 
         plt.plot(x, plot_array[:, -1], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")
         plt.legend()
 
         plt.subplot(3, 1, 2)
-        for i, lb in enumerate(labels[1:5], 1):
+        for i, lb in enumerate(labels[1:4], 1):
             if i == 3:
                 plt.plot(x, plot_array[:, i] + 1, label=lb, color=colors[i], alpha=0.8, linewidth=2)
             else:
@@ -231,6 +271,7 @@ def evaluate(
         plt.savefig(os.path.join(path_this_model_folder, "data", f"eval_plot-{i_train_sess}.png"))
         plt.close()
         print(f"Saved fig: {naming_ob.path} - eval - {i_train_sess}")
+    return naming_ob.path, eval_values
 
     # if allow_train:
     #     model_keras.save_weights(path_this_model_folder + "weights.keras")
@@ -241,7 +282,7 @@ def evaluate(
 
 
 def single_model_evaluate(
-        counter, model_params, train_sequences, price_id,
+        counter, model_params, train_sequences, price_id, game_n
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
 
@@ -281,13 +322,15 @@ def single_model_evaluate(
         #     pass
         # f"Limitig gpu: {gpu}"
         # tf.config.experimental.set_memory_growth(gpu, True)
-        evaluate(
+        result = evaluate(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=500,
                 reward_f_num=reward_fnum,
+                game_n=game_n,
         )
+        return result
     except Exception as exc:
         "PRINT TO SYS"
         print(f"EXCEPTION during evaluation: {exc} {exc.__traceback__}")
@@ -328,15 +371,17 @@ if __name__ == "__main__":
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
+    game_n = 5
 
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=6) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             proc = executor.submit(
-                    single_model_evaluate, *data, train_sequences, price_col,
+                    single_model_evaluate, *data, train_sequences, price_col, game_n
             )
             process_list.append(proc)
-            # if counter > 4:
+            print(f"Adding eval model: {counter}")
+            # if counter >= 4:
             #     break
 
             # while True
@@ -347,12 +392,18 @@ if __name__ == "__main__":
         # result = concurrent.futures.wait(process_list)
         # print("Waiting finished.")
         for proc in process_list:
-            # print(f"Waiting for Proc {proc}")
             proc.result()
-            # print(f"Proc {proc} has finished.")
-        # for f in as_completed(process_list):
-        #     print(f.result())
+
         print("All processes have ended...")
+
+        results = [proc.result() for proc in process_list]
+        print("results:")
+        print(results)
+
+        tab = unpack_evals_to_table(results, game_n)
+        print(tab)
+        with open(os.path.join(path_models, "evals.txt"), "wt") as fp:
+            fp.write(str(tab))
 
     # for res in process_list:
     #     print(res)

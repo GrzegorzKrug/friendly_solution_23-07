@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+import prettytable
 import numpy as np
 import os
 
@@ -233,6 +234,32 @@ def load_data_split(path, train_split=0.65, ):
     df_test = arr[pivot:, :]
     print(f"Train: {df_train.shape}, Test: {df_test.shape}")
     return df_train, df_test
+
+
+def unpack_evals_to_table(res_list, runs_n=3):
+    table = prettytable.PrettyTable()
+    columns = []
+    col_run = [
+            (f"{r}:actions", f"{r}:valid", f"{r}:gain")
+            for r in range(runs_n)
+    ]
+    for cl in col_run:
+        for c in cl:
+            columns.append(c)
+    # columns = [ar for ar in args]
+    # print(columns)
+    table.field_names = ["Model", *columns]
+    for i, (name, runs) in enumerate(res_list):
+        row = []
+        for val in runs:
+            # print(f"val: {val}")
+            # row.append(val)
+            row = row + list(val)
+
+        # print(row)
+        table.add_row((name, *row))
+    # print(table)
+    return table
 
 
 if __name__ == "__main__":
