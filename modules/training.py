@@ -182,7 +182,7 @@ def train_qmodel(
         max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.15,
         train_from_oldmem_fraction=0.3,
-        old_memory_size=75_000,
+        old_memory_size=60_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -190,7 +190,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        retrain_from_all=2,
+        retrain_from_all=3,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -402,14 +402,14 @@ def train_qmodel(
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
-            loss_file.write(f"{i_train_sess},{loss}\n")
+            # loss_file.write(f"{i_train_sess},{fresh_loss}\n")
 
             k = int(remember_fresh_fraction * len(fresh_memory))
             model_memory.migrate(sample(fresh_memory.memory, k))
 
             k = int(train_from_oldmem_fraction * len(model_memory))
+            tra_all_numb = max(0, int(retrain_from_all))
             if k > 3000:
-                tra_all_numb = max(0, int(retrain_from_all))
                 print(f"Retraining for: {tra_all_numb + 1}")
                 for tri_i in range(tra_all_numb + 1):
                     "Pick random samples"
@@ -421,6 +421,9 @@ def train_qmodel(
                             mini_batchsize=int(naming_ob.batch),
                     )
                     loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
+            else:
+                for tri_i in range(tra_all_numb + 1):
+                    loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
 
         "RESOLVE END SCORE"
 
@@ -713,7 +716,7 @@ def single_model_training_function(
                 time_feats, time_window, float_feats, out_size,
                 loss, nodes, lr
         )
-        reward_fnum = 4
+        reward_fnum = 5
 
         RUN_LOGGER.info(
                 f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
@@ -741,7 +744,7 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=500,
+                session_size=250,
                 fulltrain_ntimes=300,
                 reward_f_num=reward_fnum,
                 discount=discount,
@@ -783,7 +786,7 @@ if __name__ == "__main__":
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=6) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")

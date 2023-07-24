@@ -362,9 +362,9 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 0
     for batch in [1000]:
-        for arch_num in [1, 101]:
-            for dc in [0.9]:
-                for nodes in [300]:
+        for arch_num in [101]:
+            for dc in [0.2, 0.9]:
+                for nodes in [300, 500]:
                     for loss in ['huber', 'mae', 'mse']:
                         for lr in [1e-4, 1e-5, 1e-6, 1e-7]:
                             # for arch_num in [103]:
@@ -373,7 +373,7 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
                             #             for batch in [1000, 2000]:
                             #                 for loss in ['huber', 'mae', 'mse']:
                             #                     for lr in [1e-5, 1e-6, 1e-7]:
-                            print(f"Yielding params counter: {counter}")
+                            print(f"Yielding model, counter: {counter}")
                             yield counter, (
                                     arch_num, time_feats, time_window, float_feats, out_size,
                                     nodes, lr, batch, loss, dc

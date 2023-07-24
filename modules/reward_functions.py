@@ -283,6 +283,66 @@ def reward_fun_4(
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 
 
+@RewardStore.add(5)
+# @numba.njit()
+def reward_fun_5(
+        env_arr, discrete_state, action: int,
+        hidden_arr,
+        done=False,
+        price=0,
+        # price_col_ind=0,
+        # initial_cash=0,
+):
+    """
+        Allow buying only single asset.
+        Simple Gain, Simple Penalty
+    """
+    cash, initial_cash, discrete_stock, buy_price, idle_counter = hidden_arr[:5]
+
+    # price_now = env_arr[0, price_col_ind]
+    # print(f"Price now:", price_now)
+    if done:
+        end_cash = cash
+        gain_at_end_of_day = (end_cash - initial_cash) * 5
+        asset_val = price * float(discrete_stock)
+        if action == 0:
+            "BUY"
+            return BASE_PENALTY + gain_at_end_of_day - asset_val, True
+
+        elif action == 1:
+            "PASS"
+            return gain_at_end_of_day - asset_val, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE + gain_at_end_of_day, False
+            else:
+                return gain_at_end_of_day + asset_val, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
+    else:
+        if action == 0:
+            "BUY"
+            if discrete_stock == 0:
+                return -price, True
+            else:
+                return INVALID_MOVE, False
+
+        elif action == 1:
+            "PASS"
+            return -idle_counter/1000, True
+
+        elif action == 2:
+            "SELL"
+            if discrete_stock <= 0:
+                return INVALID_MOVE, False
+
+            return price, True
+        else:
+            raise ValueError(f"Invalid action: {action}, type:{type(action)}")
+
+
 if __name__ == "__main__":
     walet = np.zeros((1, 2))
     env_arr = np.zeros((10, 20))

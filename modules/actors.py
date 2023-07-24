@@ -26,7 +26,8 @@ def initialize_agents(agents_n, start_stock=0):
     cash = np.random.random((agents_n, 1)) + 1
     cargo = np.zeros((agents_n, 1), dtype=int) + start_stock
     buy_price = cargo.astype(float)
-    hidden_state = np.concatenate([cash, cash.copy(), cargo, buy_price], axis=1)
+    idle_counter = cash * 0
+    hidden_state = np.concatenate([cash, cash.copy(), cargo, buy_price, idle_counter], axis=1)
 
     return disc_state, hidden_state
 
@@ -44,7 +45,7 @@ def resolve_actions_multibuy(cur_step_price, discrete_states, hidden_states, act
     Returns:
 
     """
-    raise NotImplemented("Fix last buy price ")
+    raise NotImplemented("Fix last new hidden states ")
 
     new_disc_state = discrete_states.copy()
     new_hidden_state = hidden_states.copy()
@@ -97,9 +98,11 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
                 new_hidden_state[ag_i][0] -= cur_step_price * price_mod
                 new_hidden_state[ag_i][2] += 1
                 new_hidden_state[ag_i][3] = cur_step_price  # Remember buy price
+                new_hidden_state[ag_i][4] = 0  # Reset idle counter
 
         elif act == 1:
             "IDLE"
+            new_hidden_state[ag_i][4] += 1  # more idle
 
         elif act == 2:
             "SELL"
@@ -114,6 +117,7 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
                 "Can sell"
                 new_hidden_state[ag_i][0] += cur_step_price * price_mod  # Gain cash wallet
                 new_hidden_state[ag_i][2] -= 1  # Less cargo
+                new_hidden_state[ag_i][4] = 0  # Reset idle counter
 
                 # if new_hidden_state[i][2] > 0:
                 #     new_disc_state[i] = 1
