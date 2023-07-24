@@ -36,14 +36,18 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     plt.subplot(3, 1, 1)
     plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
     plt.plot(x_sess, sess_df['sess_eps'], label='Exploration', color='black', alpha=0.7)
-    plt.plot(x_loss, loss_df['fresh_loss'], label='Fresh loss', color='red')
 
-    old_mem = loss_df['oldmem_loss']
-    mask = old_mem >= 0
-    x_oldmem = x_loss[mask]
-    old_mem = old_mem[mask]
-    if len(old_mem) > 2:
-        plt.plot(x_oldmem, old_mem, label='Oldmem loss', color='brown')
+    if "fresh_loss" in loss_df:
+        plt.plot(x_loss, loss_df['fresh_loss'], label='Fresh loss', color='red')
+        old_mem = loss_df['oldmem_loss']
+        mask = old_mem >= 0
+        x_oldmem = x_loss[mask]
+        old_mem = old_mem[mask]
+        if len(old_mem) > 2:
+            plt.plot(x_oldmem, old_mem, label='Oldmem loss', color='brown')
+    else:
+        plt.plot(x_loss, loss_df['session_meanloss'], label='Mean loss', color='red')
+
 
     plt.legend(loc='upper left', markerscale=4)
 
@@ -60,7 +64,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     # x_qvl = qval_df['i_train_sess'].to_numpy() + temp_x
     x_qvl = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(qval_df))
     for qi, q in enumerate(q_arr.T):
-        plt.scatter(x_qvl, q, label=f"Q{qi + 1}", s=5, alpha=0.8)
+        plt.scatter(x_qvl, q, label=f"Q{qi + 1}", s=5, alpha=0.6)
     plt.legend(loc='upper left', markerscale=4)
 
     if naming:
