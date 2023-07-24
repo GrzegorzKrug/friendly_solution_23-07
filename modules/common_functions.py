@@ -249,7 +249,12 @@ def unpack_evals_to_table(res_list, runs_n=3):
     # columns = [ar for ar in args]
     # print(columns)
     table.field_names = ["Model", *columns]
-    for i, (name, runs) in enumerate(res_list):
+    for i, args in enumerate(res_list):
+        # print(f"Checking args: {args}")
+        if args is None or len(args) != 2:
+            # print(f"args: {args}")
+            continue
+        name, runs = args
         row = []
         for val in runs:
             # print(f"val: {val}")

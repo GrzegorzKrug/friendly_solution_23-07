@@ -87,7 +87,9 @@ def evaluate(
         # RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
         model_keras.load_weights(path_this_model_folder + "weights.keras")
     else:
-        raise FileNotFoundError(f"Not found model: {path_this_model_folder}")
+        print(f"Not found model for evaluation: {naming_ob.path}")
+        return
+        # raise FileNotFoundError(f"Not found model: {path_this_model_folder}")
         # RUN_LOGGER.info("Not loading model.")
 
     if allow_multibuy:
