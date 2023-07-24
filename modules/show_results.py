@@ -5,6 +5,7 @@ import pandas as pd
 from common_functions import NamingClass
 from common_settings import path_models
 
+import traceback
 import glob
 import os
 
@@ -31,11 +32,19 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     x_loss = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(loss_df))
     # sample_min
 
-    plt.subplots(3, 1, figsize=(25, 12), height_ratios=[5, 2, 6], sharex=True)
+    plt.subplots(3, 1, figsize=(25, 12), dpi=300, height_ratios=[5, 2, 3], sharex=True)
     plt.subplot(3, 1, 1)
     plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
     plt.plot(x_sess, sess_df['sess_eps'], label='Exploration', color='black', alpha=0.7)
-    plt.plot(x_loss, loss_df['session_meanloss'], label='mean loss', color='red')
+    plt.plot(x_loss, loss_df['fresh_loss'], label='Fresh loss', color='red')
+
+    old_mem = loss_df['oldmem_loss']
+    mask = old_mem >= 0
+    x_oldmem = x_loss[mask]
+    old_mem = old_mem[mask]
+    if len(old_mem) > 2:
+        plt.plot(x_oldmem, old_mem, label='Oldmem loss', color='brown')
+
     plt.legend(loc='upper left', markerscale=4)
 
     plt.subplot(3, 1, 2)
@@ -70,7 +79,7 @@ for cur_model_path in folders:
     # print(f"name: {name}")
     try:
         naming = NamingClass.from_path(cur_model_path)
-    except IndexError as err:
+    except IndexError as exc:
         print(f"Skipping results of folder: {cur_model_path} ")
         continue
     # print(naming)
@@ -90,5 +99,7 @@ for cur_model_path in folders:
         try:
             make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
             print(f"Plotted: {dt_str}")
-        except Exception as err:
-            print(f"Can not plot: {cur_model_path}- {dt_str}: error ({err})")
+        except Exception as exc:
+            print(f"Can not plot: {cur_model_path}- {dt_str}\n error: ({exc})")
+            text = '\n'.join(traceback.format_tb(exc.__traceback__, limit=None))
+            print(text)
