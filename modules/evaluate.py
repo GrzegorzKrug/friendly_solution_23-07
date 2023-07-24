@@ -121,7 +121,7 @@ def evaluate(
             (0, 0, 0),
             (0, 0, 0),
     )
-    starts = []
+
     if game_n <= 0:
         starts = [0]
     elif game_n == 3:
@@ -402,7 +402,9 @@ if __name__ == "__main__":
 
         tab = unpack_evals_to_table(results, game_n)
         print(tab)
-        with open(os.path.join(path_models, "evals.txt"), "wt") as fp:
+        now = datetime.datetime.now()
+        dt_str = f"{now.day}.{now.month}-{now.hour}.{now.minute}"
+        with open(os.path.join(path_models, f"evals-{dt_str}.txt"), "wt") as fp:
             fp.write(str(tab))
 
     # for res in process_list:

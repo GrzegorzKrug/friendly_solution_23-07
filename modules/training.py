@@ -150,7 +150,7 @@ def results_decorator(fun):
 
                     with open(path_loss, "at", buffering=1) as loss_textfile:
                         if not was_loss:
-                            loss_textfile.write("sess_i,session_meanloss\n")
+                            loss_textfile.write("sess_i,fresh_loss,oldmem_loss\n")
 
                         with open(path_rewards, "at", buffering=1) as rew_textfile:
                             if not was_rewards:
@@ -395,7 +395,7 @@ def train_qmodel(
 
         "Session Training"
         if allow_train:
-            loss = deep_q_reinforce_fresh(
+            fresh_loss = deep_q_reinforce_fresh(
                     model_keras, fresh_memory.memory,
                     discount=discount,
                     env_data_2d=datalist_2dsequences_ordered_train,
@@ -414,13 +414,13 @@ def train_qmodel(
                 for tri_i in range(tra_all_numb + 1):
                     "Pick random samples"
                     old_samples = sample(model_memory.memory, k)
-                    loss = deep_q_reinforce_oldmem(
+                    old_loss = deep_q_reinforce_oldmem(
                             model_keras, old_samples,
                             discount=discount,
                             env_data_2d=datalist_2dsequences_ordered_train,
                             mini_batchsize=int(naming_ob.batch),
                     )
-                    loss_file.write(f"{i_train_sess},{loss}\n")
+                    loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
 
         "RESOLVE END SCORE"
 
@@ -573,7 +573,7 @@ def deep_q_reinforce_oldmem(
     # fresh_mem: AgentsMemory
     # print("Shuffling:")
     # print(old_samples[:5])
-    shuffle(old_samples)
+    # shuffle(old_samples)
     # print(old_samples[:5])
     # print(f"Shuffled samples: {old_samples}")
     RUN_LOGGER.debug(
