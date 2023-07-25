@@ -180,9 +180,9 @@ def train_qmodel(
 
         # Optional
         max_eps=0.5, override_eps=None,
-        remember_fresh_fraction=0.15,
-        train_from_oldmem_fraction=0.3,
-        old_memory_size=60_000,
+        remember_fresh_fraction=0.2,
+        train_from_oldmem_fraction=0.4,
+        old_memory_size=50_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -190,7 +190,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        retrain_from_all=3,
+        extra_training_from_oldmemory=3,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -263,7 +263,7 @@ def train_qmodel(
         else:
             session_eps = get_eps(i_train_sess, fulltrain_ntimes, max_explore=max_eps)
 
-        RUN_LOGGER.debug(
+        RUN_LOGGER.info(
                 f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} (Eps: {session_eps:>2.3f}) : {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {session_size}.")
 
         "Start with different money values"
@@ -404,14 +404,22 @@ def train_qmodel(
             # L(history.history['loss'])
             # loss_file.write(f"{i_train_sess},{fresh_loss}\n")
 
-            k = int(remember_fresh_fraction * len(fresh_memory))
-            model_memory.migrate(sample(fresh_memory.memory, k))
+            if len(model_memory) <= (old_memory_size // 2):
+                "Migrate full"
+                shuffle(fresh_memory.memory)
+                model_memory.migrate(fresh_memory.memory)
 
+            else:
+                "Migrate fraction memory"
+                k = int(remember_fresh_fraction * len(fresh_memory))
+                model_memory.migrate(sample(fresh_memory.memory, k))
+
+            "Train from old"
             k = int(train_from_oldmem_fraction * len(model_memory))
-            tra_all_numb = max(0, int(retrain_from_all))
+            train_number = max(0, int(extra_training_from_oldmemory))
             if k > 3000:
-                print(f"Retraining for: {tra_all_numb + 1}")
-                for tri_i in range(tra_all_numb + 1):
+                # print(f"Retraining for: {train_number + 1}")
+                for tri_i in range(train_number + 1):
                     "Pick random samples"
                     old_samples = sample(model_memory.memory, k)
                     old_loss = deep_q_reinforce_oldmem(
@@ -422,7 +430,7 @@ def train_qmodel(
                     )
                     loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
             else:
-                for tri_i in range(tra_all_numb + 1):
+                for tri_i in range(train_number + 1):
                     loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
 
         "RESOLVE END SCORE"
@@ -430,7 +438,7 @@ def train_qmodel(
         endtime = time.time()
         duration = endtime - starttime
         LOOP_TIMES.append(duration)
-        loop_sum_text = f"This loop took: {duration:>5.4f}s. Fresh mem: {len(fresh_memory)}, Total mem: {len(model_memory)}"
+        loop_sum_text = f"This loop took: {duration:>5.4f}s. Fresh mem: {len(fresh_memory)}, Total mem: {len(model_memory)}. Mean loop time: {np.mean(LOOP_TIMES):>4.2f}"
         DEBUG_LOGGER.info(loop_sum_text)
         RUN_LOGGER.info(loop_sum_text)
 
@@ -439,8 +447,8 @@ def train_qmodel(
             RUN_LOGGER.info(f"Saved weights: {naming_ob}")
 
         time_file.write(f"{duration}\n")
-        DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
-        RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+        # DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+        # RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
 
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")
