@@ -107,14 +107,15 @@ def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
         os.makedirs(log_dir, exist_ok=True)
         fh = logging.FileHandler(os.path.join(log_dir, file_name),
                                  mode='a')
+    #
+    # ch = logging.StreamHandler()
+    #
+    # # LEVEL
+    # if stream_lvl:
+    #     ch.setLevel(stream_lvl)
+    # else:
+    #     ch.setLevel("DEBUG")
 
-    ch = logging.StreamHandler()
-
-    # LEVEL
-    if stream_lvl:
-        ch.setLevel(stream_lvl)
-    else:
-        ch.setLevel("DEBUG")
     if file_lvl:
         fh.setLevel(file_lvl)
     else:
@@ -124,7 +125,7 @@ def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
     formatter = logging.Formatter(
             f'%(asctime)s -{name}({number:>03})- %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+    # ch.setFormatter(formatter)
 
     # Add handlers to logger
     if extra_debug:
@@ -135,7 +136,7 @@ def create_debug_logger(name="DebugVals", path=None, extra_debug=None,
         logger.addHandler(extra_fh)
 
     logger.addHandler(fh)
-    logger.addHandler(ch)
+    # logger.addHandler(ch)
     logger.propagate = True  # this prevents other loggers I thinks from logging
 
     return logger
