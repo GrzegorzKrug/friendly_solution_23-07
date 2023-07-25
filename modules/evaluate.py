@@ -244,7 +244,7 @@ def evaluate(
             plt.scatter(xa, ya, label=f"Action: {lb}", s=s)
 
         # print()
-        eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 6)))
+        eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 5)))
 
         plt.plot(x, plot_array[:, -1], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")

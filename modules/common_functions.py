@@ -240,7 +240,7 @@ def unpack_evals_to_table(res_list, runs_n=3):
     table = prettytable.PrettyTable()
     columns = []
     col_run = [
-            (f"{r}:actions", f"{r}:valid", f"{r}:gain")
+            (f"{r}:acts", f"{r}:valid", f"{r}:gain")
             for r in range(runs_n)
     ]
     for cl in col_run:
