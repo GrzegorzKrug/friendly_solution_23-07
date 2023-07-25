@@ -25,8 +25,10 @@ import multiprocessing
 
 import tensorflow as tf
 
+import gc
 import concurrent
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import sys
 
 
 # session_dataframe.loc[
@@ -454,8 +456,31 @@ def train_qmodel(
         model_keras.save_weights(path_this_model_folder + "weights.keras")
         RUN_LOGGER.info(f"Saved weights: {naming_ob}")
 
+    # ref = sys.getrefcount(model_memory)
+    # print(f"Memory references: {ref}")
+    # ref = sys.getrefcount(model_memory.memory)
+    # print(f"Memory.memory references: {ref}")
+
+    # ref = sys.getrefcount(fresh_memory)
+    # print(f"Fresh Memory references: {ref}")
+    # ref = sys.getrefcount(fresh_memory.memory)
+    # print(f"Fresh Memory.memory references: {ref}")
+
+    model_memory.memory = []
+    fresh_memory.memory = []
+
     del model_memory
     del fresh_memory
+
+    # ref = sys.getrefcount(model_memory)
+    # print(f"Memory references: {ref}")
+    # ref = sys.getrefcount(model_memory.memory)
+    # print(f"Memory.memory references: {ref}")
+    #
+    # ref = sys.getrefcount(fresh_memory)
+    # print(f"Fresh Memory references: {ref}")
+    # ref = sys.getrefcount(fresh_memory.memory)
+    # print(f"Fresh Memory.memory references: {ref}")
 
 
     # return history, best, best_all
@@ -798,30 +823,35 @@ if __name__ == "__main__":
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            # if counter < 13:
-            #     continue
+            if counter >= 5:
+                break
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_id,
                     MainLogger
             )
             process_list.append(proc)
-            # if counter > 4:
-            #     break
 
             # while True
         # proc.e
         #     results.append(proc)
-        print("Waiting:")
+        # print("Waiting:")
         # result = concurrent.futures.wait(process_list)
         # print("Waiting finished.")
-        for proc in process_list:
-            print(f"Waiting for Proc {proc}")
-            proc.result()
-            print(f"Proc {proc} has finished.")
 
-        # for f in as_completed(process_list):
-        #     print(f.result())
+        while True:
+            "Deleting loop"
 
-    # for res in process_list:
-    #     print(res)
-    #     res.join()
+            to_del = set()
+
+            for proc in process_list:
+                if proc.done():
+                    to_del.add(proc)
+
+            for val in to_del:
+                MainLogger.info(f"Removing finished process: {val}")
+                process_list.remove(val)
+
+            if len(process_list) <= 0:
+                break
+
+            time.sleep(2)
