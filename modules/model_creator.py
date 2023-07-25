@@ -366,7 +366,7 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
             for dc in [0.2, 0.9]:
                 for nodes in [300, 500]:
                     for loss in ['huber', 'mae', 'mse']:
-                        for lr in [1e-4, 1e-5, 1e-6, 1e-7]:
+                        for lr in [1e-4, 1e-5, 1e-6]:
                             # for arch_num in [103]:
                             #     for dc in [0.9, 0]:
                             #         for nodes in [300]:
