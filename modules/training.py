@@ -778,7 +778,7 @@ def single_model_training_function(
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=250,
-                fulltrain_ntimes=300,
+                fulltrain_ntimes=200,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
@@ -823,8 +823,8 @@ if __name__ == "__main__":
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            if counter >= 5:
-                break
+            # if counter >= 5:
+            #     break
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_id,
                     MainLogger
