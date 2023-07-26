@@ -378,6 +378,8 @@ if __name__ == "__main__":
     with ProcessPoolExecutor(max_workers=6) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
+            # if counter != 7:
+            #     continue
             proc = executor.submit(
                     single_model_evaluate, *data, train_sequences, price_col, game_n
             )
