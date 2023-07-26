@@ -79,7 +79,7 @@ def arch_1(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
-            float_only_nodes=1,
+            float_only_nodes=0,
     )
 
     return model
@@ -91,7 +91,7 @@ def arch_2(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
-            lst_on_left=2, float_only_nodes=1,
+            lst_on_left=1, float_only_nodes=1,
     )
 
     return model
@@ -103,7 +103,7 @@ def arch_3(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
-            lst_on_left=2, common_nodes=2, float_only_nodes=2
+            lst_on_left=1, common_nodes=2, float_only_nodes=0
     )
 
     return model
@@ -113,7 +113,10 @@ def arch_3(time_feats, time_window, float_feats, out_size, nodes=20):
 @compile_decorator()
 def arch_4(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
-    model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, float_only_nodes=6)
+    model = builder_2pipes(
+            time_feats, time_window, float_feats, out_size, nodes,
+            lst_on_left=2, common_nodes=1, float_only_nodes=0
+    )
 
     return model
 
@@ -122,14 +125,35 @@ def arch_4(time_feats, time_window, float_feats, out_size, nodes=20):
 @compile_decorator()
 def arch_5(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
+    model = builder_2pipes(
+            time_feats, time_window, float_feats, out_size, nodes,
+            lst_on_left=2, common_nodes=2, float_only_nodes=0
+    )
+
+    return model
+
+
+@ArchRegister.register(40)
+@compile_decorator()
+def arch_40(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, float_only_nodes=6)
+
+    return model
+
+
+@ArchRegister.register(50)
+@compile_decorator()
+def arch_55(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
     model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, common_nodes=3)
 
     return model
 
 
-@ArchRegister.register(6)
+@ArchRegister.register(60)
 @compile_decorator()
-def arch_6(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_60(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_pyramid(
             float_feats, nodes, out_size, time_feats, time_window,
@@ -140,9 +164,9 @@ def arch_6(time_feats, time_window, float_feats, out_size, nodes=20):
     return model
 
 
-@ArchRegister.register(7)
+@ArchRegister.register(70)
 @compile_decorator()
-def arch_7(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_70(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_pyramid(
             float_feats, nodes, out_size, time_feats, time_window,
@@ -182,6 +206,26 @@ def arch_103(time_feats, time_window, float_feats, out_size, nodes=20):
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes, common_nodes=2,
 
+    )
+    return model
+
+
+@ArchRegister.register(104)
+@compile_decorator()
+def arch_104(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2_flats(
+            time_feats, time_window, float_feats, out_size, nodes, dens_on_left=2, common_nodes=1,
+    )
+    return model
+
+
+@ArchRegister.register(105)
+@compile_decorator()
+def arch_105(time_feats, time_window, float_feats, out_size, nodes=20):
+    """"""
+    model = builder_2_flats(
+            time_feats, time_window, float_feats, out_size, nodes, dens_on_left=2, common_nodes=2,
     )
     return model
 
