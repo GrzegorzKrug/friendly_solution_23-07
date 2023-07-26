@@ -201,7 +201,7 @@ def evaluate(
             # env_state_arr = timesegment_2d
 
             # cur_step_price = env_state_arr[0, price_col_ind]
-            cur_step_price = datalist_2dsequences_ordered_train[i_sample, 0, 3]
+            cur_step_price = datalist_2dsequences_ordered_train[i_sample, -1, price_col_ind]
             # print(datalist_2dsequences_ordered_train.shape)
             # print(cur_step_price, type(cur_step_price))
 
@@ -304,7 +304,7 @@ def single_model_evaluate(
                 time_feats, time_window, float_feats, out_size,
                 loss, nodes, lr
         )
-        reward_fnum = 5
+        reward_fnum = 6
 
         naming_ob = NamingClass(
                 arch_num, ITERATION,

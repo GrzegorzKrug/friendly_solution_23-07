@@ -364,7 +364,7 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
     for batch in [500]:
         for arch_num in [1, 101]:
             for dc in [0.9]:
-                for nodes in [800]:
+                for nodes in [1000]:
                     for loss in ['huber', 'mae', 'mse']:
                         for lr in [1e-5, 1e-6]:
                             # for arch_num in [103]:

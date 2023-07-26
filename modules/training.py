@@ -300,11 +300,11 @@ def train_qmodel(
             if not i_sample % WALK_INTERVAL_DEBUG:
                 RUN_LOGGER.debug(f"Walking sample: {i_sample}, memory: {len(fresh_memory.memory)}")
 
-            if done_session:
-                future_segment3d = None
-            else:
-                future_segment3d = datalist_2dsequences_ordered_train[i_sample + 1, :][np.newaxis, :, :]
-                # futuresegment_stacked = np.tile(future_segment3d, (agents_n, 1, 1))
+            # if done_session:
+            #     future_segment3d = None
+            # else:
+            #     future_segment3d = datalist_2dsequences_ordered_train[i_sample + 1, :][np.newaxis, :, :]
+            #   # futuresegment_stacked = np.tile(future_segment3d, (agents_n, 1, 1))
 
             "MOVE TO IF BELOW"
             # print("Discrete shape", agents_discrete_states.shape)
@@ -337,8 +337,10 @@ def train_qmodel(
             valids = []
 
             env_state_arr = timesegment_2d
+            # price_ind
+            # price_ind
 
-            cur_step_price = env_state_arr[0, price_col_ind]
+            cur_step_price = env_state_arr[-1, price_col_ind]
             for agent_i, (state_arr, act, hidden_arr) in enumerate(
                     zip(agents_discrete_states, actions, hidden_states)
             ):
@@ -346,6 +348,7 @@ def train_qmodel(
 
                 rew, valid = reward_fun(
                         env_state_arr, state_arr, act, hidden_arr, done_session, cur_step_price,
+                        price_col_ind
                 )
                 arr = [i_train_sess, session_eps, i_sample, agent_i, rew]
                 text = ",".join([str(a) for a in arr])
@@ -723,7 +726,7 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
 
 
 def single_model_training_function(
-        counter, model_params, train_sequences, price_id,
+        counter, model_params, train_sequences, price_ind,
         main_logger: logger
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
@@ -749,7 +752,7 @@ def single_model_training_function(
                 time_feats, time_window, float_feats, out_size,
                 loss, nodes, lr
         )
-        reward_fnum = 5
+        reward_fnum = 6
 
         RUN_LOGGER.info(
                 f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
@@ -775,7 +778,7 @@ def single_model_training_function(
         # tf.config.experimental.set_memory_growth(gpu, True)
         train_qmodel(
                 model, train_sequences,
-                price_col_ind=price_id,
+                price_col_ind=price_ind,
                 naming_ob=naming_ob,
                 session_size=250,
                 fulltrain_ntimes=200,
@@ -801,8 +804,8 @@ if __name__ == "__main__":
     print(
             "Loading file with columns: ", columns,
     )
-    price_id = np.argwhere(columns == "last").ravel()[0]
-    print(f"Price `last` at col: {price_id}")
+    price_ind = np.argwhere(columns == "last").ravel()[0]
+    print(f"Price `last` at col: {price_ind}")
     train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
 
     time_wind = 10
@@ -823,10 +826,10 @@ if __name__ == "__main__":
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            # if counter >= 5:
-            #     break
+            # if counter <= 5:
+            #     continue
             proc = executor.submit(
-                    single_model_training_function, *data, train_sequences, price_id,
+                    single_model_training_function, *data, train_sequences, price_ind,
                     MainLogger
             )
             process_list.append(proc)
