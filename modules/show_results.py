@@ -14,6 +14,7 @@ folders = glob.glob(f"{path_models}*")
 folders = [fold for fold in folders if os.path.isdir(fold)]
 
 from matplotlib.style import use
+import multiprocessing as mpc
 
 
 use('ggplot')
@@ -48,7 +49,6 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     else:
         plt.plot(x_loss, loss_df['session_meanloss'], label='Mean loss', color='red')
 
-
     plt.legend(loc='upper left', markerscale=4)
 
     plt.subplot(3, 1, 2)
@@ -78,32 +78,43 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     # print(sess_df)
 
 
-for cur_model_path in folders:
-    # name = os.path.basename(cur_model_path)
-    # print(f"name: {name}")
+def plot_thread(args):
+    cur_model_path, dt_str, naming = args
     try:
-        naming = NamingClass.from_path(cur_model_path)
-    except IndexError as exc:
-        print(f"Skipping results of folder: {cur_model_path} ")
-        continue
-    # print(naming)
+        make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
+        print(f"Plotted: {dt_str}")
+    except Exception as exc:
+        print(f"Can not plot: {cur_model_path}- {dt_str}\n error: ({exc})")
+        text = '\n'.join(traceback.format_tb(exc.__traceback__, limit=None))
+        print(text)
 
-    res_files = glob.glob(os.path.join(cur_model_path, "data", "") + "*")
-    file_names = [os.path.basename(fil) for fil in res_files]
-    dates = set()
-    for file in file_names:
-        if not file.endswith('.csv'):
-            continue
-        dt, tm, nm = file.split('-')
-        dt_str = f"{dt}-{tm}"
-        dates.add(dt_str)
 
-    print(f"Plotting: {naming.path}")
-    for dt_str in dates:
+if __name__ == "__main__":
+    args = []
+    for cur_model_path in folders:
+        # name = os.path.basename(cur_model_path)
+        # print(f"name: {name}")
         try:
-            make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
-            print(f"Plotted: {dt_str}")
-        except Exception as exc:
-            print(f"Can not plot: {cur_model_path}- {dt_str}\n error: ({exc})")
-            text = '\n'.join(traceback.format_tb(exc.__traceback__, limit=None))
-            print(text)
+            naming = NamingClass.from_path(cur_model_path)
+        except IndexError as exc:
+            print(f"Skipping results of folder: {cur_model_path} ")
+            continue
+        # print(naming)
+
+        res_files = glob.glob(os.path.join(cur_model_path, "data", "") + "*")
+        file_names = [os.path.basename(fil) for fil in res_files]
+        dates = set()
+        for file in file_names:
+            if not file.endswith('.csv'):
+                continue
+            dt, tm, nm = file.split('-')
+            dt_str = f"{dt}-{tm}"
+            dates.add(dt_str)
+
+        print(f"Adding args: {naming.path}")
+        for dt_str in dates:
+            # plot_thread()
+            args.append((cur_model_path, dt_str, naming))
+
+    pool = mpc.Pool(6)
+    pool.map(plot_thread, args)
