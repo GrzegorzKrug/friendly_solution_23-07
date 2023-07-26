@@ -366,8 +366,10 @@ def reward_fun_6(
     "Pos = Rising, Negative = Decreasing"
     "Current price - Last price"
     price_change = (env_arr_2d[-1, price_col_ind] - env_arr_2d[- 2, price_col_ind])
-    # price_change *= 10000  # 10k : reward~  +=0.056
-    price_change *= 15000  # 15k : reward~  +=0.085
+    price_change *= 10000  # 10k : reward~  +=0.056
+    # price_change *= 15000  # 15k : reward~  +=0.085
+    price_change = np.clip(price_change, -0.35, 0.35)
+
     if done:
         end_cash = cash
         gain_at_end_of_day = (end_cash - initial_cash) * 5
