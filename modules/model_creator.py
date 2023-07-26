@@ -406,10 +406,10 @@ models_folder = os.path.join(os.path.dirname(__file__), "..", "models", "")
 def grid_models_generator(time_feats, time_window, float_feats, out_size):
     counter = 0
     for batch in [500]:
-        for arch_num in [1, 101]:
+        for arch_num in [1, 3, 101, 103]:
             for dc in [0.9]:
                 for nodes in [1000]:
-                    for loss in ['huber', 'mae', 'mse']:
+                    for loss in ['huber', 'mae', ]:
                         for lr in [1e-5, 1e-6]:
                             # for arch_num in [103]:
                             #     for dc in [0.9, 0]:
