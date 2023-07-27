@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import os
+from matplotlib.style import use
 
 from datetime import timedelta
 
@@ -354,6 +355,7 @@ def generate_interpolated_data(
 
 
 if __name__ == "__main__":
+    use('ggplot')
     input_data_path = folder_danych + "on_balance_volume.txt"
     dataframe = pd.read_csv(input_data_path)
 
@@ -388,6 +390,7 @@ if __name__ == "__main__":
     ax.locator_params(nbins=30, axis='x')
     plt.tight_layout()
     plt.savefig(path_data_clean_folder + "last.png")
+    plt.close()
     # print(dataframe.columns)
 
     # segment = segment[:1000, :]

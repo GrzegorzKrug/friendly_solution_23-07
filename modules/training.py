@@ -727,6 +727,7 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
 
 def single_model_training_function(
         counter, model_params, train_sequences, price_ind,
+        train_duration,
         main_logger: logger
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
@@ -781,7 +782,7 @@ def single_model_training_function(
                 price_col_ind=price_ind,
                 naming_ob=naming_ob,
                 session_size=250,
-                fulltrain_ntimes=200,
+                fulltrain_ntimes=train_duration,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
@@ -826,10 +827,12 @@ if __name__ == "__main__":
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            # if counter <= 5:
+            train_duration = 500
+            # if counter < 6:
             #     continue
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_ind,
+                    train_duration,
                     MainLogger
             )
             process_list.append(proc)

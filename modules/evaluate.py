@@ -373,7 +373,7 @@ if __name__ == "__main__":
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
-    game_n = 5
+    game_n = 7
 
     with ProcessPoolExecutor(max_workers=6) as executor:
         process_list = []
