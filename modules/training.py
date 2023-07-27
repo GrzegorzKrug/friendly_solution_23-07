@@ -830,6 +830,9 @@ if __name__ == "__main__":
             train_duration = 500
             # if counter < 6:
             #     continue
+            # elif counter <= 11:
+            #     train_duration = 280
+
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_ind,
                     train_duration,
