@@ -793,6 +793,7 @@ def single_model_training_function(
 
     "Clear memory?"
     del model
+    tf.keras.backend.clear_session()
 
 
 if __name__ == "__main__":
