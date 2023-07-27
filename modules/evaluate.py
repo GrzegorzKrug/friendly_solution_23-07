@@ -375,7 +375,7 @@ if __name__ == "__main__":
     #     single_model_training_function(*data)
     game_n = 7
 
-    with ProcessPoolExecutor(max_workers=6) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             # if counter != 7:
