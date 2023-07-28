@@ -239,7 +239,7 @@ def load_data_split(path, train_split=0.65, ):
 def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
     table = prettytable.PrettyTable()
     if add_summary:
-        columns = ["Sum gain:", "Sum valid acts:"]
+        columns = ["Sum gain:", "Sum valids:"]
     else:
         columns = []
     col_run = [
@@ -269,12 +269,12 @@ def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
                 total_valid_acts += val[1]
                 total_gain += val[2]
 
-            row = row + list(val)
+            row = row + [val[0], val[1], np.round(val[2])]
 
         # print(row)
 
         if add_summary:
-            all_rows.append((name, total_gain, total_valid_acts, *row))
+            all_rows.append((name, np.round(total_gain, 4), total_valid_acts, *row))
         else:
             all_rows.append((name, *row))
     # print(table)
@@ -282,6 +282,7 @@ def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
         all_rows = sorted(all_rows, key=lambda x: x[0])
 
     for row in all_rows:
+        print("adding row:", row)
         table.add_row(row)
     return table
 

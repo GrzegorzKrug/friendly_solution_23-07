@@ -448,6 +448,8 @@ def plot_all_architectures():
         print(name, func)
         model = func(1, 1, 1, 1)
         keras.utils.plot_model(model, models_folder + f"{name}.png")
+        del model
+        tf.keras.backend.clear_session()
 
 
 if __name__ == "__main__":

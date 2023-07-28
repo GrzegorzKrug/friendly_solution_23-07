@@ -8,7 +8,7 @@ import datetime
 from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
-from common_settings import ITERATION, path_data_clean_folder, path_models
+from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
 from common_functions import (
     NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split,
     unpack_evals_to_table,
@@ -32,6 +32,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from matplotlib.style import use
 
+from preprocess_data import preprocess_pipe
+
 
 # session_dataframe.loc[
 #     len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
@@ -44,6 +46,7 @@ def evaluate(
         # fulltrain_ntimes=1000,
         # agents_n=10,
         session_size=3600,
+        name="",
 
         # Optional
         max_eps=0.5, override_eps=None,
@@ -70,11 +73,12 @@ def evaluate(
         # time_file: TextIOWrapper = None,
         # loss_file: TextIOWrapper = None,
         # rew_file: TextIOWrapper = None,
+        time_sequences=None,
 ):
     # RUN_LOGGER.debug(
     #         f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
     N_SAMPLES = len(datalist_2dsequences_ordered_train)
-    WALK_INTERVAL_DEBUG = 250
+    # WALK_INTERVAL_DEBUG = 250
     # RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
 
     gpus = tf.config.list_physical_devices('GPU')
@@ -91,6 +95,8 @@ def evaluate(
         return
         # raise FileNotFoundError(f"Not found model: {path_this_model_folder}")
         # RUN_LOGGER.info("Not loading model.")
+    path_eval_folder = os.path.join(path_this_model_folder, "evals", "")
+    os.makedirs(path_eval_folder, exist_ok=True)
 
     if allow_multibuy:
         resolve_actions_func = resolve_actions_multibuy
@@ -124,20 +130,20 @@ def evaluate(
             (0, 0, 0),
     )
 
-    if game_n <= 0:
-        starts = [0]
-    elif game_n == 3:
-        starts = [0, 500, 1000]
-    elif game_n == 4:
-        starts = [0, 500, 1000, 1500]
-    elif game_n == 5:
-        starts = [0, 500, 1000, 1500, 3000]
-    elif game_n == 7:
-        starts = [0, 500, 1000, 1500, 3000, 4000, 5000]
-    else:
-        starts = [0]
-        print(f"Unsuported games amount: {game_n}")
-        # raise ValueError(f"Not supported amount of games: {game_n}")
+    # if game_n <= 0:
+    #     starts = [0]
+    # elif game_n == 3:
+    #     starts = [0, 500, 1000]
+    # elif game_n == 4:
+    #     starts = [0, 500, 1000, 1500]
+    # elif game_n == 5:
+    #     starts = [0, 500, 1000, 1500, 3000]
+    # elif game_n == 7:
+    #     starts = [0, 500, 1000, 1500, 3000, 4000, 5000]
+    # else:
+    #     starts = [0]
+    starts = np.linspace(0, N_SAMPLES - 10 - session_size, game_n).round().astype(int)
+    print(f"Starts: {starts}")
 
     eval_values = []
 
@@ -167,7 +173,8 @@ def evaluate(
 
         for i_sample in range(ses_start, ses_end - 1):  # Never in done state
             # print(f"Sample: {i_sample}")
-            done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
+            # done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
+            logged_actions = []
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
@@ -216,6 +223,11 @@ def evaluate(
                     hidden_states[0, 0], hidden_states[0, 2], actions[0],
                     step_gain, *q_vals[0, :], cur_step_price,
             ]
+
+            if time_sequences is not None:
+                sample_time = time_sequences[i_sample]
+                logged_actions.append((sample_time, actions[0]))
+
             plot_vec = np.array(plot_vec).reshape(1, -1)
 
             # print(plot_array.shape, plot_vec.shape)
@@ -270,9 +282,18 @@ def evaluate(
         plt.suptitle(naming_ob.path)
         plt.xlabel("sample number")
         plt.tight_layout()
-        plt.savefig(os.path.join(path_this_model_folder, "data", f"eval_plot-{i_train_sess}.png"))
+        plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{i_train_sess}.png"))
         plt.close()
-        print(f"Saved fig: {naming_ob.path} - eval - {i_train_sess}")
+        print(f"Saved fig: {naming_ob.path} - eval - {name} - {i_train_sess}")
+
+        if logged_actions:
+            with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_train_sess}.csv'),
+                      "wt")as fp:
+                fp.write(f"#Game start: {time_sequences[ses_start]}s\n")
+                fp.write("timestamp_s,action\n")
+                for a, b in logged_actions:
+                    fp.write(f"{a},{b}\n")
+
     return naming_ob.path, eval_values
 
     # if allow_train:
@@ -284,7 +305,10 @@ def evaluate(
 
 
 def single_model_evaluate(
-        counter, model_params, train_sequences, price_id, game_n
+        counter, model_params, train_sequences, price_id,
+        game_n, game_duration,
+        name="",
+        time_sequences=None,
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
 
@@ -328,9 +352,11 @@ def single_model_evaluate(
                 model, train_sequences,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
-                session_size=500,
+                session_size=game_duration,
                 reward_f_num=reward_fnum,
                 game_n=game_n,
+                name=name,
+                time_sequences=time_sequences,
         )
         return result
     except Exception as exc:
@@ -347,41 +373,28 @@ def single_model_evaluate(
 
     "Clear memory?"
     del model
+    tf.keras.backend.clear_sesion()
 
 
-if __name__ == "__main__":
-    use('ggplot')
-    "LOAD Interpolated data"
-    columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
-    print(
-            "Loading file with columns: ", columns,
-    )
-    price_col = np.argwhere(columns == "last").ravel()[0]
-    print(f"Price `last` at col: {price_col}")
-    train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
-
-    time_wind = 10
-    float_feats = 1
-    out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:7500, :], time_wind, [1])
-
-    samples_n, _, time_ftrs = train_sequences.shape
-    print(f"Train sequences shape: {train_sequences.shape}")
-
-    "Model Grid"
+def evaluate_pipeline(
+        train_sequences, prioce_col,
+        workers=4, games_n=5, uniform_games=True,
+        game_duration=250, name="",
+        time_sequences=None,
+):
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
-    game_n = 7
-
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             # if counter != 7:
             #     continue
             proc = executor.submit(
-                    single_model_evaluate, *data, train_sequences, price_col, game_n
+                    single_model_evaluate, *data, train_sequences, price_col,
+                    games_n, game_duration, name,
+                    time_sequences=time_sequences,
             )
             process_list.append(proc)
             print(f"Adding eval model: {counter}")
@@ -404,12 +417,81 @@ if __name__ == "__main__":
         print("results:")
         print(results)
 
-        tab = unpack_evals_to_table(results, game_n)
-        print(tab)
+        tab = unpack_evals_to_table(results, games_n)
+        # print(tab)
         now = datetime.datetime.now()
         dt_str = f"{now.day}.{now.month}-{now.hour}.{now.minute}"
-        with open(os.path.join(path_models, f"evals-{dt_str}.txt"), "wt") as fp:
+        with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
             fp.write(str(tab))
+
+
+if __name__ == "__main__":
+    use('ggplot')
+
+    time_wind = 10
+    float_feats = 1
+    out_sze = 3
+
+    if False:
+        "LOAD Interpolated data"
+        columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
+        print(
+                "Loading file with columns: ", columns,
+        )
+        print(f"Price `last` at col: {price_col}")
+        train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
+    else:
+        files = ["on_balance_volume.txt", 'obv_600.txt']
+        for file_name in files:
+            file_path = path_data_folder + "on_balance_33.txt"
+            if not os.path.isfile(file_path):
+                print(f"Skipping file: {file_name}")
+                continue
+
+            name, *_ = file_name.split(".")
+
+            interval_s = 10
+            sequences, columns = preprocess_pipe(file_path, include_time=True, interval_s=interval_s)
+            train_data = sequences[0]
+            column = columns[0]
+
+            time_col = column.index('timestamp_s')
+            price_col = column.index('last') - 1  # offset to dropped time column
+            # print(f"time col: {time_col}")
+
+            del sequences
+            del columns
+
+            timestamps_s = train_data[:, 0] + (time_wind - 1) * interval_s  # Window=1 : offset=0
+            train_data = train_data[:, 1:]
+
+            # print(train_data[:20, price_col])
+
+            # print(train_data.shape)
+            samples_n, time_ftrs = train_data.shape
+            # price_col = np.argwhere(column == "last").ravel()[0]
+            # price_col = np.argwhere(column == "last").ravel()[0]
+            train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
+            # print(train_sequences[:20, :, price_col])
+
+            # break
+            evaluate_pipeline(
+                    train_sequences, price_col,
+                    game_duration=1000,
+                    workers=4,
+                    games_n=10,
+                    name=f"{name}",
+                    time_sequences=timestamps_s,
+            )
+
+
+    # train_sequences, _ = to_sequences_forward(train_data[:7500, :], time_wind, [1])
+    #
+    # samples_n, _, time_ftrs = train_sequences.shape
+    # print(f"Train sequences shape: {train_sequences.shape}")
+    #
+    # "Model Grid"
+    # evaluate_pipeline(train_sequences, price_col)
 
     # for res in process_list:
     #     print(res)

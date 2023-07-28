@@ -175,7 +175,7 @@ def train_qmodel(
         price_col_ind,
         naming_ob: NamingClass,
         fulltrain_ntimes=1000,
-        agents_n=10,
+        agents_n=20,
         session_size=3600,
 
         allow_train=True, model_memory: ModelMemory = None,
@@ -184,7 +184,7 @@ def train_qmodel(
         max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
-        old_memory_size=50_000,
+        old_memory_size=70_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,

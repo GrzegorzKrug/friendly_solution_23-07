@@ -10,6 +10,8 @@ from common_settings import path_data_clean_folder
 
 from common_functions import to_sequences_forward
 
+from yasiu_native.time import measure_real_time_decorator
+
 
 folder_danych = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dane", "")) + os.path.sep
 
@@ -63,7 +65,7 @@ def timestr_to_seconds(x: str):
     return seconds
 
 
-def preprocess(df, firstday_index=8895, allow_plot=False):
+def preprocess(df, firstday_index=8895, allow_plot=False, save_path=None):
     print("Processing data")
 
     "Discard bad days"
@@ -147,7 +149,9 @@ def preprocess(df, firstday_index=8895, allow_plot=False):
     # plt.plot(df['last'])
     # plt.show()
 
-    df.to_csv(os.path.join(path_data_clean_folder, "cleaned.csv"), index=False)
+    if save_path:
+        df.to_csv(os.path.join(path_data_clean_folder, "cleaned.csv"), index=False)
+
     return df
 
 
@@ -166,7 +170,7 @@ DATA_NORM_DICT = {
                         '# of trades',
                 ]
         },
-        "NonZero": {
+        "Non Zero": {
                 "method": "div", "value": 500,
                 "keys": [
                         'nonzero bid&ask vol at high/low highlight & extension lines',
@@ -267,7 +271,7 @@ from common_functions import interp_1d_sub
 def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
     out_list = []
     out_columns = []
-    print("OVB is here")
+    # print("OVB is here")
 
     for segment in segments_list:
         tm_s = (segment['timestamp_ns'] / 1e9).values
@@ -275,19 +279,23 @@ def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
         # print(tm_s[0], tm_s[-1], diff)
         # print("segment", diff)
         # print(segment.columns)
+        # print(f"Entry columns:{segment.columns}")
+        # print(segment.loc[:5, [ 'timestamp_ns']])
+        print(f"INCLIDING TIME: {include_time}\n" * 2)
+
         segment = segment.drop(columns=['timestamp_ns'])
         tm_uniform = np.arange(tm_s[0], tm_s[-1] + int_interval_s, int_interval_s)
 
         if include_time:
-            columns = ['timestamp_ns']
+            columns = ['timestamp_s']
             out_array = np.array(tm_uniform).reshape(-1, 1)
         else:
             out_array = None
             columns = []
 
         for c_i, col in enumerate(segment):
-            print(f"Interpolating: {c_i}: {col}")
             vals = segment[col].values
+            print(f"Interpolating: {c_i}: {col} ({vals[0].dtype})")
             vals_uni = interp_1d_sub(tm_uniform, tm_s, vals).reshape(-1, 1)
 
             if out_array is None:
@@ -329,7 +337,8 @@ def generate_interpolated_data(
 
     "Normalize data"
     df = normalize(df)
-    df.to_csv(path_data_clean_folder + "normalized.csv", index=False)
+    if False:
+        df.to_csv(path_data_clean_folder + "normalized.csv", index=False)
 
     segments = [df]
     # columns = [list(df.columns)]
@@ -348,15 +357,16 @@ def generate_interpolated_data(
             int_interval_s=interval_s,
             include_time=include_time
     )
+    print("Columns:")
+    print(columns)
     del segments
 
     # print(segments_uni[0][0, :])
     return segments_uni, columns
 
 
-if __name__ == "__main__":
-    use('ggplot')
-    input_data_path = folder_danych + "on_balance_volume.txt"
+@measure_real_time_decorator
+def preprocess_pipe(input_data_path, interval_s=10, include_time=False):
     dataframe = pd.read_csv(input_data_path)
 
     "CLEAN"
@@ -366,21 +376,31 @@ if __name__ == "__main__":
     # print(folder_danych_clean)
     # path = os.path.join(folder_danych_clean, "test.csv")
     segments, columns = generate_interpolated_data(
-            dataframe=dataframe, include_time=False,
-            interval_s=10,
+            dataframe=dataframe, include_time=include_time,
+            interval_s=interval_s,
     )
+    return segments, columns
+
+
+if __name__ == "__main__":
+    os.makedirs(path_data_clean_folder, exist_ok=True)
+    use('ggplot')
+    input_data_path = folder_danych + "on_balance_volume.txt"
     # print(segment)
 
     "DATA Is not split by any days/weeks. 1 segment"
+    segments, columns = preprocess_pipe(input_data_path)
     segment = segments[0]
     columns = columns[0]
-    print("final shape:", segment.shape)
+    # print(f"Columns: {columns}")
+    # print("final shape:", segment.shape)
+    # print(segment[15])
 
     np.save(path_data_clean_folder + "int_norm.arr.npy", segment)
     np.save(path_data_clean_folder + "int_norm.columns.npy", columns)
 
-    print(columns)
-    columns: list
+    # print(columns)
+    # columns: list
     price_ind = columns.index('last')
     print(f"price ind: {price_ind}, type: {type(price_ind)}")
     plt.figure(figsize=(20, 5), dpi=200)
@@ -391,25 +411,33 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig(path_data_clean_folder + "last.png")
     plt.close()
-    # print(dataframe.columns)
-
-    # segment = segment[:1000, :]
-    print(segment.shape)
-
-    twindow = 200
-    sequences, _ = to_sequences_forward(segment[:int(len(segment) * 0.6)], twindow, [1])
-    # print(sequences[:5, :, :4])
-    print(sequences.shape)
-
-    # np.save(path_data_clean_folder + f"int_norm.sequences-W{twindow}.npy", sequences)
-    # np.save(path_data_clean_folder + "int_norm_WTime.columns.npy", columns)
+    # # print(dataframe.columns)
     #
-    # arr2 = np.load(path_data_clean_folder + "int_norm.arr.npy", allow_pickle=True)
-    # arr2_cols = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
+    # # segment = segment[:1000, :]
+    # print(segment.shape)
     #
-    # # print(segment[:3, :5])
-    # # print(arr2[:3, :5])
-    # print(arr2_cols.shape)
+    # twindow = 5
+    # sequences, _ = to_sequences_forward(segment[:int(len(segment) * 0.6)], twindow, [1])
+    # print(segment[:10, price_ind])
+    # print(segment.shape)
+    # print(sequences[:5, :5, price_ind])
+    # print(sequences[:5, 0, price_ind])
+    # print(sequences[:5, 1, price_ind])
+    # print(sequences.shape)
     #
-    # print(arr2_cols)
-    # print(arr2_cols.dtype)
+    # print("1x 2D Array")
+    # print(sequences[0])
+    # print(f"price ind: {price_ind}")
+    # prices = segment[:17000, price_ind]
+    # diff = np.diff(prices)
+    # diff = np.clip(diff * 10000, -1, 1)
+    #
+    # X1 = np.arange(len(prices))
+    # X2 = np.arange(len(diff)) + 1
+    # plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+    # plt.subplot(2, 1, 1)
+    # plt.plot(X1, prices)
+    # plt.subplot(2, 1, 2)
+    # plt.plot(X2 + 1, diff)
+    # plt.tight_layout()
+    # plt.show()
