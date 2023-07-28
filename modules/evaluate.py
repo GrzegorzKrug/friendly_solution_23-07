@@ -171,10 +171,11 @@ def evaluate(
         # print(f"Session: {i_train_sess}")
         # print(f"Walking start sample: {ses_start}")
 
+        logged_actions = []
+
         for i_sample in range(ses_start, ses_end - 1):  # Never in done state
             # print(f"Sample: {i_sample}")
             # done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
-            logged_actions = []
 
             timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
@@ -279,7 +280,7 @@ def evaluate(
         plt.title("Q vals")
         plt.legend()
 
-        plt.suptitle(naming_ob.path)
+        plt.suptitle(naming_ob.path + f", Game: {i_train_sess}")
         plt.xlabel("sample number")
         plt.tight_layout()
         plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{i_train_sess}.png"))
