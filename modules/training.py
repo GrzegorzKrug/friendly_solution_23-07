@@ -9,10 +9,11 @@ import logger
 from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
-from common_settings import ITERATION, path_data_clean_folder, path_models
+from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
 from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split
 from reward_functions import RewardStore
 
+from preprocess_data import preprocess_pipe
 from functools import wraps
 from collections import deque
 from model_creator import grid_models_generator, model_builder
@@ -727,7 +728,7 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
 
 def single_model_training_function(
         counter, model_params, train_sequences, price_ind,
-        train_duration,
+        train_duration, game_duration,
         main_logger: logger
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
@@ -781,7 +782,7 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_ind,
                 naming_ob=naming_ob,
-                session_size=250,
+                session_size=game_duration,
                 fulltrain_ntimes=train_duration,
                 reward_f_num=reward_fnum,
                 discount=discount,
@@ -801,19 +802,35 @@ if __name__ == "__main__":
     # DEBUG_LOGGER = logger.debug_logger
     MainLogger.info("=== NEW TRAINING ===")
 
-    "LOAD Interpolated data"
-    columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
-    print(
-            "Loading file with columns: ", columns,
-    )
-    price_ind = np.argwhere(columns == "last").ravel()[0]
-    print(f"Price `last` at col: {price_ind}")
-    train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
-
     time_wind = 10
     float_feats = 1
     out_sze = 3
-    train_sequences, _ = to_sequences_forward(train_data[:7500, :], time_wind, [1])
+
+    # "LOAD Interpolated data"
+    # columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
+    # print(
+    #         "Loading file with columns: ", columns,
+    # )
+    # price_ind = np.argwhere(columns == "last").ravel()[0]
+    # print(f"Price `last` at col: {price_ind}")
+    # train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
+    file_path = os.path.join(path_data_folder, "obv_600.txt")
+    interval_s = 10
+
+    sequences, columns = preprocess_pipe(file_path, include_time=False, interval_s=interval_s)
+    train_data = sequences[0]
+    column = columns[0]
+
+    # time_col = column.index('timestamp_s')
+    price_ind = column.index('last')  # offset to dropped time column
+    # print(f"time col: {time_col}")
+
+    del sequences
+    del columns
+
+    timestamps_s = train_data[:, 0] + (time_wind - 1) * interval_s  # Window=1 : offset=0
+    train_data = train_data[:, 1:]
+    train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
 
     samples_n, _, time_ftrs = train_sequences.shape
     print(f"Train sequences shape: {train_sequences.shape}")
@@ -829,14 +846,17 @@ if __name__ == "__main__":
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
             train_duration = 500
-            # if counter < 6:
-            #     continue
+            game_duration = 250
+            # if counter < 3:
+            #     pass
             # elif counter <= 11:
             #     train_duration = 280
+            # else:
+            #     continue
 
             proc = executor.submit(
                     single_model_training_function, *data, train_sequences, price_ind,
-                    train_duration,
+                    train_duration, game_duration,
                     MainLogger
             )
             process_list.append(proc)
