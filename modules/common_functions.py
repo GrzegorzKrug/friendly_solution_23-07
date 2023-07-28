@@ -236,9 +236,12 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-def unpack_evals_to_table(res_list, runs_n=3):
+def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
     table = prettytable.PrettyTable()
-    columns = []
+    if add_summary:
+        columns = ["Sum gain:", "Sum valid acts:"]
+    else:
+        columns = []
     col_run = [
             (f"{r}:acts", f"{r}:valid", f"{r}:gain")
             for r in range(runs_n)
@@ -249,8 +252,11 @@ def unpack_evals_to_table(res_list, runs_n=3):
     # columns = [ar for ar in args]
     # print(columns)
     table.field_names = ["Model", *columns]
+    all_rows = []
     for i, args in enumerate(res_list):
-        # print(f"Checking args: {args}")
+        total_valid_acts = 0
+        total_gain = 0.0
+
         if args is None or len(args) != 2:
             # print(f"args: {args}")
             continue
@@ -259,11 +265,24 @@ def unpack_evals_to_table(res_list, runs_n=3):
         for val in runs:
             # print(f"val: {val}")
             # row.append(val)
+            if add_summary:
+                total_valid_acts += val[1]
+                total_gain += val[2]
+
             row = row + list(val)
 
         # print(row)
-        table.add_row((name, *row))
+
+        if add_summary:
+            all_rows.append((name, total_gain, total_valid_acts, *row))
+        else:
+            all_rows.append((name, *row))
     # print(table)
+    if add_summary:
+        all_rows = sorted(all_rows, key=lambda x: x[0])
+
+    for row in all_rows:
+        table.add_row(row)
     return table
 
 
