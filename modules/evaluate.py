@@ -227,7 +227,9 @@ def evaluate(
 
             if time_sequences is not None:
                 sample_time = time_sequences[i_sample]
-                logged_actions.append((sample_time, actions[0]))
+                # print(f"Adding action to filesaver: {actions[0]}")
+                if actions[0] != 1:
+                    logged_actions.append((sample_time, actions[0]))
 
             plot_vec = np.array(plot_vec).reshape(1, -1)
 
@@ -294,6 +296,10 @@ def evaluate(
                 fp.write("timestamp_s,action\n")
                 for a, b in logged_actions:
                     fp.write(f"{a},{b}\n")
+
+                print(f"Saved actions to: eval-{name}-{i_train_sess}.csv")
+        else:
+            print("NOT SAVED ACTIONS")
 
     return naming_ob.path, eval_values
 
