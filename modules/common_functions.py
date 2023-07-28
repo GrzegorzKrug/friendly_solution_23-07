@@ -279,7 +279,7 @@ def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
             all_rows.append((name, *row))
     # print(table)
     if add_summary:
-        all_rows = sorted(all_rows, key=lambda x: x[0])
+        all_rows = sorted(all_rows, key=lambda x: x[1])
 
     for row in all_rows:
         print("adding row:", row)

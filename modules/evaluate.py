@@ -289,17 +289,17 @@ def evaluate(
         plt.close()
         print(f"Saved fig: {naming_ob.path} - eval - {name} - {i_train_sess}")
 
-        if logged_actions:
-            with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_train_sess}.csv'),
-                      "wt")as fp:
-                fp.write(f"#Game start: {time_sequences[ses_start]}s\n")
-                fp.write("timestamp_s,action\n")
+        with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_train_sess}.csv'),
+                  "wt")as fp:
+            fp.write(f"#Game start: {time_sequences[ses_start]}s\n")
+            fp.write("timestamp_s,action\n")
+            if logged_actions:
                 for a, b in logged_actions:
                     fp.write(f"{a},{b}\n")
 
                 print(f"Saved actions to: eval-{name}-{i_train_sess}.csv")
-        else:
-            print("NOT SAVED ACTIONS")
+            else:
+                print("Not save actions")
 
     return naming_ob.path, eval_values
 
