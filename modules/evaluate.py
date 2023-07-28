@@ -443,7 +443,7 @@ if __name__ == "__main__":
     else:
         files = ["on_balance_volume.txt", 'obv_600.txt']
         for file_name in files:
-            file_path = path_data_folder + "on_balance_33.txt"
+            file_path = path_data_folder + file_name
             if not os.path.isfile(file_path):
                 print(f"Skipping file: {file_name}")
                 continue
