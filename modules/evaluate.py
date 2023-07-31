@@ -33,14 +33,15 @@ import matplotlib.pyplot as plt
 from matplotlib.style import use
 
 from preprocess_data import preprocess_pipe
+import gc
 
 
 # session_dataframe.loc[
 #     len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
 
 
-def evaluate(
-        model_keras: keras.Model, datalist_2dsequences_ordered_train,
+def eval_func(
+        model_keras: keras.Model, segments_oftraindata,
         price_col_ind,
         naming_ob: NamingClass,
         # fulltrain_ntimes=1000,
@@ -66,6 +67,8 @@ def evaluate(
         # stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
         allow_multibuy=False,
+        timestamp_col=None,
+        full_eval=False,
 
         # FILE SAVERS
         # qvals_file: TextIOWrapper = None,
@@ -73,11 +76,10 @@ def evaluate(
         # time_file: TextIOWrapper = None,
         # loss_file: TextIOWrapper = None,
         # rew_file: TextIOWrapper = None,
-        time_sequences=None,
+        # time_sequences=None,
 ):
     # RUN_LOGGER.debug(
     #         f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
-    N_SAMPLES = len(datalist_2dsequences_ordered_train)
     # WALK_INTERVAL_DEBUG = 250
     # RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
 
@@ -103,10 +105,6 @@ def evaluate(
     else:
         resolve_actions_func = resolve_actions_singlebuy
 
-    if N_SAMPLES <= 0:
-        raise ValueError(
-                f"Too few samples! {N_SAMPLES}, shape:{datalist_2dsequences_ordered_train.shape}")
-
     # reward_fun = RewardStore.get(reward_f_num)
     # out_size = int(naming_ob.outsize)
     # qv_dataframe = pd.DataFrame(columns=['eps', 'sess_i', 'sample_n', 'buy', 'idle', 'sell'])
@@ -130,30 +128,37 @@ def evaluate(
             (0, 0, 0),
     )
 
-    # if game_n <= 0:
-    #     starts = [0]
-    # elif game_n == 3:
-    #     starts = [0, 500, 1000]
-    # elif game_n == 4:
-    #     starts = [0, 500, 1000, 1500]
-    # elif game_n == 5:
-    #     starts = [0, 500, 1000, 1500, 3000]
-    # elif game_n == 7:
-    #     starts = [0, 500, 1000, 1500, 3000, 4000, 5000]
-    # else:
-    #     starts = [0]
-    starts = np.linspace(0, N_SAMPLES - 10 - session_size, game_n).round().astype(int)
-    print(f"Starts: {starts}")
-
     eval_values = []
+    if full_eval:
+        game_n = len(segments_oftraindata)
+        print(f"Full eval, games: {game_n}")
 
-    for i_train_sess, ses_start in enumerate(starts):
-        # last_start = N_SAMPLES - session_size
-        # if i_train_sess == 0:
-        #     ses_start = 0
-        # else:
-        #     ses_start = np.random.randint(0, last_start)
-        ses_end = ses_start + session_size
+    for i_eval_sess in range(game_n):
+        "RANDOM SEGMENT"
+        ordered_list_of3dsequences = segments_oftraindata[i_eval_sess]
+
+        if timestamp_col is not None:
+            time_sequences = ordered_list_of3dsequences[:, -1, timestamp_col]
+            ordered_list_of3dsequences = np.delete(ordered_list_of3dsequences, timestamp_col, axis=2)
+            # print(f"Removing time col: {timestamp_col}, new shape: {ordered_list_of3dsequences.shape}")
+        else:
+            time_sequences = None
+
+        # N_SAMPLES = len(ordered_list_of3dsequences)
+        n_samples, time_wind, time_ftrs = ordered_list_of3dsequences.shape
+
+        if n_samples <= 10:
+            raise ValueError(
+                    f"Too few samples! {n_samples}, shape:{ordered_list_of3dsequences.shape}")
+
+        if full_eval:
+            ses_start = 0
+            ses_end = len(ordered_list_of3dsequences) - 1
+            print(f"Full eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
+            # ses_end = 50
+        else:
+            ses_start = np.random.randint(0, n_samples - 1 - session_size)
+            ses_end = ses_start + session_size
 
         agents_discrete_states, hidden_states = initialize_agents(agents_n)
 
@@ -167,26 +172,18 @@ def evaluate(
 
         labels = ['i_sample', 'Cash', 'Cargo', 'Action', 'Gain', 'Q1', 'Q2', 'Q3', 'price']
         plot_array = np.zeros((0, len(labels)), dtype=float)
-        # print()
-        # print(f"Session: {i_train_sess}")
-        # print(f"Walking start sample: {ses_start}")
 
         logged_actions = []
 
-        for i_sample in range(ses_start, ses_end - 1):  # Never in done state
-            # print(f"Sample: {i_sample}")
-            # done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
+        for i_sample in range(ses_start, ses_end):  # Never in done state
 
-            timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
+            timesegment_2d = ordered_list_of3dsequences[i_sample, :]
             timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
 
             # if not i_sample % WALK_INTERVAL_DEBUG:
             #     print(f"Walking sample: {i_sample}")
 
             "MOVE TO IF BELOW"
-            # print(timesegment_stacked.shape)
-            # print(agents_discrete_states.shape)
-            # print(f"Price col: {price_col_ind}")
 
             q_vals = model_keras.predict(
                     [timesegment_stacked, agents_discrete_states],
@@ -204,12 +201,7 @@ def evaluate(
                 "Sell when 1"
                 how_many_valid += 1
 
-            # rewards = []
-            # valids = []
-            # env_state_arr = timesegment_2d
-
-            # cur_step_price = env_state_arr[0, price_col_ind]
-            cur_step_price = datalist_2dsequences_ordered_train[i_sample, -1, price_col_ind]
+            cur_step_price = ordered_list_of3dsequences[i_sample, -1, price_col_ind]
             # print(datalist_2dsequences_ordered_train.shape)
             # print(cur_step_price, type(cur_step_price))
 
@@ -229,7 +221,7 @@ def evaluate(
                 sample_time = time_sequences[i_sample]
                 # print(f"Adding action to filesaver: {actions[0]}")
                 if actions[0] != 1:
-                    logged_actions.append((sample_time, actions[0]))
+                    logged_actions.append((sample_time, actions[0], cur_step_price))
 
             plot_vec = np.array(plot_vec).reshape(1, -1)
 
@@ -282,22 +274,23 @@ def evaluate(
         plt.title("Q vals")
         plt.legend()
 
-        plt.suptitle(naming_ob.path + f", Game: {i_train_sess}")
+        plt.suptitle(naming_ob.path + f", Game: {i_eval_sess}")
         plt.xlabel("sample number")
         plt.tight_layout()
-        plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{i_train_sess}.png"))
+        plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{i_eval_sess}.png"))
         plt.close()
-        print(f"Saved fig: {naming_ob.path} - eval - {name} - {i_train_sess}")
+        print(f"Saved fig: {naming_ob.path} - eval - {name} - {i_eval_sess}")
 
-        with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_train_sess}.csv'),
+        with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_eval_sess}.csv'),
                   "wt")as fp:
             fp.write(f"#Game start: {time_sequences[ses_start]}s\n")
-            fp.write("timestamp_s,action\n")
-            if logged_actions:
-                for a, b in logged_actions:
-                    fp.write(f"{a},{b}\n")
+            fp.write("timestamp_s,action,price\n")
 
-                print(f"Saved actions to: eval-{name}-{i_train_sess}.csv")
+            if logged_actions:
+                for a, b, c in logged_actions:
+                    fp.write(f"{a},{b},{c}\n")
+
+                print(f"Saved actions to: eval-{name}-{i_eval_sess}.csv")
             else:
                 print("Not save actions")
 
@@ -312,10 +305,11 @@ def evaluate(
 
 
 def single_model_evaluate(
-        counter, model_params, train_sequences, price_id,
+        counter, model_params, train_segments, price_id,
         game_n, game_duration,
         name="",
-        time_sequences=None,
+        full_eval=False,
+        timestamp_col=None,
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
 
@@ -355,17 +349,20 @@ def single_model_evaluate(
         #     pass
         # f"Limitig gpu: {gpu}"
         # tf.config.experimental.set_memory_growth(gpu, True)
-        result = evaluate(
-                model, train_sequences,
+        result = eval_func(
+                model, train_segments,
                 price_col_ind=price_id,
                 naming_ob=naming_ob,
                 session_size=game_duration,
                 reward_f_num=reward_fnum,
                 game_n=game_n,
                 name=name,
-                time_sequences=time_sequences,
+                timestamp_col=timestamp_col,
+                full_eval=full_eval,
+                # time_sequences=time_sequences,
         )
         return result
+
     except Exception as exc:
         "PRINT TO SYS"
         print(f"EXCEPTION during evaluation: {exc} {exc.__traceback__}")
@@ -381,14 +378,25 @@ def single_model_evaluate(
     "Clear memory?"
     del model
     tf.keras.backend.clear_sesion()
+    del train_segments
+    print("Cleared memory... ?")
+
+    collected = gc.collect()
+    print(f"Collected: {collected}")
+    tf.keras.backend.clear_sesion()
 
 
 def evaluate_pipeline(
-        train_sequences, prioce_col,
-        workers=4, games_n=5, uniform_games=True,
+        train_segments, price_col,
+        time_wind, time_ftrs,
+        workers=4, games_n=5,
+        # uniform_games=True,
         game_duration=250, name="",
-        time_sequences=None,
+        # time_sequences=None,
+        timestamp_col=None,
+        full_eval=False,
 ):
+    # n,time_wind,time_ftrs
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
@@ -396,12 +404,16 @@ def evaluate_pipeline(
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
+            # if counter >= 5:
+            #     break
             # if counter != 7:
             #     continue
             proc = executor.submit(
-                    single_model_evaluate, *data, train_sequences, price_col,
+                    single_model_evaluate, *data, train_segments, price_col,
                     games_n, game_duration, name,
-                    time_sequences=time_sequences,
+                    # time_sequences=time_sequences,
+                    full_eval=full_eval,
+                    timestamp_col=timestamp_col,
             )
             process_list.append(proc)
             print(f"Adding eval model: {counter}")
@@ -421,10 +433,10 @@ def evaluate_pipeline(
         print("All processes have ended...")
 
         results = [proc.result() for proc in process_list]
-        print("results:")
-        print(results)
+        # print("results:")
+        # print(results)
 
-        tab = unpack_evals_to_table(results, games_n)
+        tab = unpack_evals_to_table(results)
         # print(tab)
         now = datetime.datetime.now()
         dt_str = f"{now.day}.{now.month}-{now.hour}.{now.minute}"
@@ -458,48 +470,34 @@ if __name__ == "__main__":
             name, *_ = file_name.split(".")
 
             interval_s = 10
-            sequences, columns = preprocess_pipe(file_path, include_time=True, interval_s=interval_s)
-            train_data = sequences[0]
+            segments, columns = preprocess_pipe(file_path, include_time=True, interval_s=interval_s)
+            # train_data = sequences[0]
             column = columns[0]
 
-            time_col = column.index('timestamp_s')
-            price_col = column.index('last') - 1  # offset to dropped time column
+            time_col = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
+            price_col = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
+            print(f"Time col: {time_col}, Price col: {price_col}")
             # print(f"time col: {time_col}")
 
-            del sequences
-            del columns
+            samples_n, time_ftrs = segments[0].shape
+            time_ftrs -= 1  # Reduce due to time column
 
-            timestamps_s = train_data[:, 0] + (time_wind - 1) * interval_s  # Window=1 : offset=0
-            train_data = train_data[:, 1:]
-
-            # print(train_data[:20, price_col])
-
-            # print(train_data.shape)
-            samples_n, time_ftrs = train_data.shape
             # price_col = np.argwhere(column == "last").ravel()[0]
             # price_col = np.argwhere(column == "last").ravel()[0]
-            train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
+            train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
+            # train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
             # print(train_sequences[:20, :, price_col])
 
-            # break
+            print("single segment", train_segments[0].shape)
+
             evaluate_pipeline(
-                    train_sequences, price_col,
-                    game_duration=1000,
+                    train_segments, price_col,
+                    time_wind=time_wind, time_ftrs=time_ftrs,
+                    game_duration=200,
                     workers=4,
-                    games_n=10,
+                    games_n=2,
                     name=f"{name}",
-                    time_sequences=timestamps_s,
+                    # time_sequences=timestamps_s,
+                    timestamp_col=time_col,
+                    full_eval=True,
             )
-
-
-    # train_sequences, _ = to_sequences_forward(train_data[:7500, :], time_wind, [1])
-    #
-    # samples_n, _, time_ftrs = train_sequences.shape
-    # print(f"Train sequences shape: {train_sequences.shape}")
-    #
-    # "Model Grid"
-    # evaluate_pipeline(train_sequences, price_col)
-
-    # for res in process_list:
-    #     print(res)
-    #     res.join()

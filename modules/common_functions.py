@@ -170,7 +170,7 @@ def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
     return np.array(x, dtype=np.float32), np.array(y, np.float32)
 
 
-def to_sequences_forward_keep_features(array, seq_size=1, fwd_intervals=[1], ft_amount=0):
+def to_sequences_forward_ignore_features(array, seq_size=1, fwd_intervals=[1], ft_amount=0):
     x = []
     y = []
     offset_arr = np.array(fwd_intervals) - 1
@@ -236,12 +236,18 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
+def unpack_evals_to_table(res_list, add_summary=True):
     table = prettytable.PrettyTable()
     if add_summary:
         columns = ["Sum gain:", "Sum valids:"]
     else:
         columns = []
+
+    name, single_res = res_list[0]
+    # print("single result:", single_res)
+    runs_n = len(single_res)
+    # print(runs_n)
+
     col_run = [
             (f"{r}:acts", f"{r}:valid", f"{r}:gain")
             for r in range(runs_n)
@@ -279,7 +285,7 @@ def unpack_evals_to_table(res_list, runs_n=3, add_summary=True):
             all_rows.append((name, *row))
     # print(table)
     if add_summary:
-        all_rows = sorted(all_rows, key=lambda x: x[1])
+        all_rows = sorted(all_rows, key=lambda x: x[1], reverse=True)
 
     for row in all_rows:
         print("adding row:", row)
