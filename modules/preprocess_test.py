@@ -1,10 +1,12 @@
 import pytest
 
 from preprocess_data import (
-    timestr_to_dayfraction, to_sequences_1d, to_sequences_2d,
+    timestr_to_dayfraction, to_sequences_1d, to_sequences_2d, split_df_to_segments,
 )
 from modules.common_functions import to_sequences_forward
+
 import numpy as np
+import pandas as pd
 
 
 baseparams = [
@@ -311,3 +313,42 @@ def test8_intervals_2d(arr, intv, seq_size):
                 assert fw_y == check_y, "Values Y missmatch"
 
     raise ValueError
+
+
+# test_9_args=[
+#         (arr),
+# ]
+@pytest.fixture(params=[5, 10, 25, 50, 100, 200])
+def timeseries_df(request):
+    N = request.param
+    print(f"Creating df of size: {N}")
+    df = pd.DataFrame(columns=['timestamp_ns', 'value'], dtype=float)
+    arr = np.random.random((N, 2)) * (1e9, 1)
+    # arr = np.sort(arr,axis=0)
+    # print(arr.shape)
+    # df.loc[:N] = arr
+    for i, row in enumerate(arr):
+        df.loc[i] = row
+
+    return df
+
+
+@pytest.mark.parametrize("split_gap", (0.2, 0.5,))
+def test9_split_test(timeseries_df, split_gap):
+
+    segments = split_df_to_segments(timeseries_df, split_gap)
+
+    assert len(segments) > 0, "Must return some segments"
+
+    assert sum(map(len, segments)) == len(timeseries_df), "Size must match!"
+
+    print(f"Got segments: {len(segments)}")
+
+    for segm in segments:
+        if len(segm) > 1:
+            diff = np.diff(segm['timestamp_ns'] / 1e9)
+            print("Segment:")
+            print(segm)
+            print("Segment diff:")
+            print(diff)
+            assert np.sum(diff > split_gap) <= 0, f"Must have smaller gaps only in segment but got: {diff}"

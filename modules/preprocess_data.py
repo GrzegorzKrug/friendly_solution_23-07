@@ -1,16 +1,13 @@
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
 import os
-from matplotlib.style import use
-
 from datetime import timedelta
 
-from common_settings import path_data_clean_folder
-
-from common_functions import to_sequences_forward
-
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.style import use
 from yasiu_native.time import measure_real_time_decorator
+
+from common_settings import path_data_clean_folder
 
 
 folder_danych = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "dane", "")) + os.path.sep
@@ -382,62 +379,88 @@ def preprocess_pipe(input_data_path, interval_s=10, include_time=False):
     return segments, columns
 
 
+@measure_real_time_decorator
+def split_df_to_segments(dataframe, split_s=1800):
+    diff_s = np.abs(np.diff(dataframe['timestamp_ns'] / 1e9))
+    nodes = np.argwhere(diff_s >= split_s).ravel()
+
+    if len(nodes) <= 0:
+        return [dataframe]
+    else:
+        nodes = [0, *(nodes + 1)]
+
+    segments = []
+    for start, stop in zip(nodes, nodes[1:]):
+        segm = dataframe.iloc[start:stop, :]
+        segments.append(segm)
+
+    if len(nodes) <= 0:
+        segments = [dataframe]
+
+    elif nodes[-1] != len(dataframe):
+        segments.append(dataframe.iloc[nodes[-1]:, :])
+
+    return segments
+
+
 if __name__ == "__main__":
     os.makedirs(path_data_clean_folder, exist_ok=True)
     use('ggplot')
-    input_data_path = folder_danych + "on_balance_volume.txt"
-    # print(segment)
+    np.set_printoptions(suppress=True)
 
-    "DATA Is not split by any days/weeks. 1 segment"
-    segments, columns = preprocess_pipe(input_data_path)
-    segment = segments[0]
-    columns = columns[0]
-    # print(f"Columns: {columns}")
-    # print("final shape:", segment.shape)
-    # print(segment[15])
+    "CLEAN"
+    input_data_path = folder_danych + "obv_600.txt"
+    dataframe = pd.read_csv(input_data_path)
+    dataframe = preprocess(dataframe)
 
-    np.save(path_data_clean_folder + "int_norm.arr.npy", segment)
-    np.save(path_data_clean_folder + "int_norm.columns.npy", columns)
+    for num in dataframe.loc[:5, 'timestamp_ns'].to_numpy() / 1e9:
+        print(num)
+
+    segments = split_df_to_segments(dataframe, 1800)
+    plt.subplots(2, 1, sharex=True, )
+
+    for segm in segments[5:11]:
+        dataframe = segm
+
+        # print(dataframe.columns)
+        timestamp_ns = dataframe['timestamp_ns']
+
+        diff = np.diff(timestamp_ns) / 1e9
+        # print("Diff:")
+        # for num in diff[:5]:
+        #     print(num)
+
+        # print("Segment timestamp_ns:")
+        # for num in timestamp_ns[:5]:
+        #     print(num / 1e9, num)
+        x = timestamp_ns / 1e9
+
+        plt.subplot(2, 1, 1)
+        plt.plot(x[:-1], diff)
+        plt.subplot(2, 1, 2)
+        plt.plot(x, dataframe['last'].to_numpy())
+
+    plt.tight_layout()
+    plt.show()
+
+
+    # "DATA Is not split by any days/weeks. 1 segment"
+    # segments, columns = preprocess_pipe(input_data_path)
+    # segment = segments[0]
+    # columns = columns[0]
+
+    # np.save(path_data_clean_folder + "int_norm.arr.npy", segment)
+    # np.save(path_data_clean_folder + "int_norm.columns.npy", columns)
 
     # print(columns)
     # columns: list
-    price_ind = columns.index('last')
-    print(f"price ind: {price_ind}, type: {type(price_ind)}")
-    plt.figure(figsize=(20, 5), dpi=200)
-    plt.grid()
-    plt.plot(segment[:7500, price_ind])
-    ax = plt.gca()
-    ax.locator_params(nbins=30, axis='x')
-    plt.tight_layout()
-    plt.savefig(path_data_clean_folder + "last.png")
-    plt.close()
-    # # print(dataframe.columns)
-    #
-    # # segment = segment[:1000, :]
-    # print(segment.shape)
-    #
-    # twindow = 5
-    # sequences, _ = to_sequences_forward(segment[:int(len(segment) * 0.6)], twindow, [1])
-    # print(segment[:10, price_ind])
-    # print(segment.shape)
-    # print(sequences[:5, :5, price_ind])
-    # print(sequences[:5, 0, price_ind])
-    # print(sequences[:5, 1, price_ind])
-    # print(sequences.shape)
-    #
-    # print("1x 2D Array")
-    # print(sequences[0])
-    # print(f"price ind: {price_ind}")
-    # prices = segment[:17000, price_ind]
-    # diff = np.diff(prices)
-    # diff = np.clip(diff * 10000, -1, 1)
-    #
-    # X1 = np.arange(len(prices))
-    # X2 = np.arange(len(diff)) + 1
-    # plt.subplots(2, 1, figsize=(12, 8), sharex=True)
-    # plt.subplot(2, 1, 1)
-    # plt.plot(X1, prices)
-    # plt.subplot(2, 1, 2)
-    # plt.plot(X2 + 1, diff)
+    # price_ind = columns.index('last')
+    # print(f"price ind: {price_ind}, type: {type(price_ind)}")
+    # plt.figure(figsize=(20, 5), dpi=200)
+    # plt.grid()
+    # plt.plot(segment[:7500, price_ind])
+    # ax = plt.gca()
+    # ax.locator_params(nbins=30, axis='x')
     # plt.tight_layout()
-    # plt.show()
+    # plt.savefig(path_data_clean_folder + "last.png")
+    # plt.close()
