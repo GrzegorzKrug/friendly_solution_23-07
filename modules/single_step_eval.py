@@ -450,18 +450,23 @@ def evaluate_pipeline(
 if __name__ == "__main__":
     use('ggplot')
 
+    gpus = tf.config.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
     time_wind = 10
     float_feats = 1
     out_sze = 3
 
-    files = ["on_balance_volume.txt"]
-    for file_name in files:
-        file_path = path_data_folder + file_name
-        name, *_ = file_name.split(".")
+    files = ["on_balance_volume.txt", "obv_600.txt"]
+
+    for file in files:
+        file_path = path_data_folder + file
+        file_name, *_ = file.split(".")
 
         print(f"Trying: {file_path}")
         if not os.path.isfile(file_path):
-            print(f"Skipping file: {file_name}")
+            print(f"Skipping file: {file}")
             continue
 
         gen = grid_models_generator(16, 10, 1, 3)
@@ -470,36 +475,92 @@ if __name__ == "__main__":
         split_interval_s = 1800
 
         # for model in gen:
+        # last_state = (0, 0)
 
-        for i in range(157):
-            loaded_df = pd.read_csv(file_path).loc[:11 + i, :]
-            # print(f"Loaded df:", dataframe.shape)
-            # print(dataframe['Date'])
-            # print(dataframe)
-            # ser_date = dataframe['Date']
-            # print(ser_date.dtype)
-            # mask = ser_date >= "2023-5-29"
-            # print(mask)
-            # print(np.argmax(mask))
-            #
-            # print(ser_date > "2023-5-29")
-            # print(da)
-
-
-            "CLEAN"
-            dataframe = preprocess(loaded_df, first_sample_date="2023-6-15")
-            if len(dataframe) <= 1:
-                print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
-                continue
-            # print("preprocessed", dataframe.shape)
-            # print(dataframe['date'])
-
-            segments, columns = generate_interpolated_data(
-                    dataframe=dataframe, include_time=False,
-                    interval_s=interval_s, split_interval_s=split_interval_s
+        for counter, model_params in gen:
+            (arch_num, time_feats, time_window, float_feats, out_size,
+             nodes, lr, batch, loss, discount
+             ) = model_params
+            model_keras = model_builder(
+                    arch_num,
+                    time_feats, time_window, float_feats, out_size,
+                    loss, nodes, lr
             )
-            print("Loop end:", i, loaded_df.shape, dataframe.shape, len(segments))
-            print("=== " * 3)
-            print()
 
-            # list_ofsequences = [to_sequences_forward(arr, 10, [1])[1] for arr in segments]
+            naming_ob = NamingClass(
+                    arch_num, ITERATION,
+                    time_feats=time_feats, time_window=time_window, float_feats=float_feats,
+                    outsize=out_size,
+                    node_size=nodes, reward_fnum=6,
+                    learning_rate=lr, loss=loss, batch=batch,
+                    discount=discount,
+            )
+            "GET MODEL PATH"
+            path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
+            if os.path.isfile(path_this_model_folder + "weights.keras"):
+                # RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
+                model_keras.load_weights(path_this_model_folder + "weights.keras")
+                print(f"Loaded weights: {naming_ob}")
+
+            else:
+                print(f"Not found model for evaluation: {naming_ob.path}")
+                continue
+
+            os.makedirs(os.path.join(path_this_model_folder, "single_bar_eval"), exist_ok=True)
+
+            state = 0
+
+            last_data_shp = (0, 0)
+
+            "LOADING NEW DATA"
+            out_df = pd.read_csv(file_path)
+            out_df['action'] = -1
+
+            for i in range(50, len(out_df)):
+                loaded_df = pd.read_csv(file_path).loc[:i + 1, :]
+
+                "CLEAN"
+                dataframe = preprocess(loaded_df, first_sample_date="2023-6-15")
+                if len(dataframe) <= 1:
+                    print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                    continue
+                # print("preprocessed", dataframe.shape)
+                # print(dataframe['date'])
+
+                segments, columns = generate_interpolated_data(
+                        dataframe=dataframe, include_time=False,
+                        interval_s=interval_s, split_interval_s=split_interval_s
+                )
+
+                list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
+                if len(list_ofsequences) <= 0:
+                    print(f"Skipping iteration: {i} too few sequences")
+                    continue
+
+                this_data_state = (len(segments), len(list_ofsequences[-1]))
+                # print(f"data state:{this_data_state}")
+
+                pred_state = np.array(state).reshape(1, 1)
+                pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
+                predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                # print(f"Predict shape: x,3: {predicted.shape}")
+                # print(predicted)
+                act = np.argmax(predicted, axis=1)[0]
+
+                # print(i, f"Act: {act}")
+                out_df.loc[i, 'action'] = act
+
+                "Post state eval"
+                if act == 0:
+                    state = 1
+                else:
+                    state = 0
+
+            save_path = os.path.join(path_this_model_folder, "single_bar_eval", f"{file_name}.csv")
+            out_df: pd.DataFrame
+            out_df.to_csv(save_path, index=False)
+            print(f"Saved data to: {save_path}")
+
+            del model_keras
+            tf.keras.backend.clear_session()
+            tf.compat.v1.reset_default_graph()

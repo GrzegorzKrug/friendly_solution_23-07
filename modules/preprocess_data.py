@@ -326,22 +326,8 @@ def generate_interpolated_data(
     else:
         df = dataframe
 
-    # "End week indexes"
-    # split_week_mask = df.loc[:len(df) - 2, 'dayofweek'].values > df.loc[1:, 'dayofweek'].values
-    # split_week_inds = np.argwhere(split_week_mask).ravel() + 1
-
-    # mu = df['non'].mean()
-    # vals = (df['bid volume'] - mu)
-    # std = vals.std()
-    # vals = vals / std
-    # print(vals)
-    # print(mu)
-    # print(std)
-
     "Normalize data"
     df = normalize(df)
-    # if False:
-    #     df.to_csv(path_data_clean_folder + "normalized.csv", index=False)
 
     "SPLIT INTO SEGMENTS"
     if split_interval_s <= 0:
@@ -349,18 +335,6 @@ def generate_interpolated_data(
     else:
         segments = split_df_to_segments(df, split_s=split_interval_s, minimum_samples_per_segment=5)
 
-    # print(f"post normalize df shp: {df.shape}. segments: {len(segments)}.")
-    # segments = [df]
-    # columns = [list(df.columns)]
-    # print(columns)
-    # columns[0].remove("timestamp_ns")
-    # print(columns)
-    # inds = np.concatenate([[0], split_week_inds, [len(df)]])
-    # for start, stop in zip(inds, inds[1:]):
-    #     week_segment = df.iloc[start:stop, :]
-    #     segments.append(week_segment)
-    # print("df shape:", df.shape)
-    # print("interp input shape:", segments[0].shape)
 
     "INTERPOLATE SEGMENTS"
     segments_uni, columns = interpolate_segments(

@@ -337,7 +337,6 @@ def single_model_evaluate(
                 time_feats=time_feats, time_window=time_window, float_feats=float_feats,
                 outsize=out_size,
                 node_size=nodes, reward_fnum=reward_fnum,
-
                 learning_rate=lr, loss=loss, batch=batch,
                 discount=discount,
         )
