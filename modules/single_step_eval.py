@@ -464,6 +464,12 @@ if __name__ == "__main__":
         file_path = path_data_folder + file
         file_name, *_ = file.split(".")
 
+        if file == "on_balance_volume.txt":
+            cut_date = "2023-6-15"
+        else:
+            cut_date = None
+        # print(f"cut date: {cut_date}")
+
         print(f"Trying: {file_path}")
         if not os.path.isfile(file_path):
             print(f"Skipping file: {file}")
@@ -520,7 +526,7 @@ if __name__ == "__main__":
                 loaded_df = pd.read_csv(file_path).loc[:i + 1, :]
 
                 "CLEAN"
-                dataframe = preprocess(loaded_df, first_sample_date="2023-6-15")
+                dataframe = preprocess(loaded_df, first_sample_date=cut_date)
                 if len(dataframe) <= 1:
                     print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
                     continue
