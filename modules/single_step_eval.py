@@ -458,7 +458,7 @@ if __name__ == "__main__":
     float_feats = 1
     out_sze = 3
 
-    files = ["on_balance_volume.txt", "obv_600.txt"]
+    files = ["obv_600.txt"]
     dtnow = datetime.datetime.now()
     datetime_postfix = f"{dtnow.month}.{dtnow.day}-{dtnow.hour}.{dtnow.minute}"
 

@@ -75,7 +75,7 @@ def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = No
         if len(df) <= 0:
             return df
 
-        df.reset_index(inplace=True)
+    df.reset_index(inplace=True)
 
     "Rename columns"
     df.columns = list(map(clean_col, df.columns))
