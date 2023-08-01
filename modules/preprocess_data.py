@@ -62,12 +62,20 @@ def timestr_to_seconds(x: str):
     return seconds
 
 
-def preprocess(df, firstday_index=8895, allow_plot=False, save_path=None):
-    print("Processing data")
+def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = None):
+    """"""
+    # print("Processing data")
 
-    "Discard bad days"
-    df = df.iloc[firstday_index:, :]
-    df.reset_index(inplace=True)
+    if first_sample_date:
+        first_sample_date = str(first_sample_date)
+        mask = df['Date'] >= first_sample_date
+        # first_ind = np.argmax(mask)
+        # print(f"Cutting data to day: {first_ind}: {first_sample_date}")
+        df = df.loc[mask, :]
+        if len(df) <= 0:
+            return df
+
+        df.reset_index(inplace=True)
 
     "Rename columns"
     df.columns = list(map(clean_col, df.columns))
@@ -269,30 +277,27 @@ def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
     out_list = []
     out_columns = []
     # print("OVB is here")
+    # print(f"Interpolating: {len(segments_list)} segments.")
 
     for segment in segments_list:
-        tm_s = (segment['timestamp_ns'] / 1e9).values
-        # diff = tm_s[-1] - tm_s[0]
-        # print(tm_s[0], tm_s[-1], diff)
-        # print("segment", diff)
-        # print(segment.columns)
-        # print(f"Entry columns:{segment.columns}")
-        # print(segment.loc[:5, [ 'timestamp_ns']])
-        # print(f"INCLIDING TIME: {include_time}\n" * 2)
+        # print(segment)
+        # print(segment['timestamp_ns'])
+        tm_s = (segment['timestamp_ns'].to_numpy() / 1e9)
 
         segment = segment.drop(columns=['timestamp_ns'])
-        tm_uniform = np.arange(tm_s[0], tm_s[-1] + int_interval_s, int_interval_s)
+        tm_uniform = np.arange(tm_s[0], tm_s[-1] + int_interval_s, int_interval_s, dtype=int)
+        # print(f"Tm uniform: {tm_uniform}")
 
         if include_time:
             columns = ['timestamp_s']
             out_array = np.array(tm_uniform).reshape(-1, 1)
+            print("Array from timestamp", out_array.dtype)
         else:
             out_array = None
             columns = []
 
         for c_i, col in enumerate(segment):
             vals = segment[col].values
-            # print(f"Interpolating: {c_i}: {col} ({vals[0].dtype})")
             vals_uni = interp_1d_sub(tm_uniform, tm_s, vals).reshape(-1, 1)
 
             if out_array is None:
@@ -342,7 +347,9 @@ def generate_interpolated_data(
     if split_interval_s <= 0:
         segments = [df]
     else:
-        segments = split_df_to_segments(df, split_s=split_interval_s)
+        segments = split_df_to_segments(df, split_s=split_interval_s, minimum_samples_per_segment=5)
+
+    # print(f"post normalize df shp: {df.shape}. segments: {len(segments)}.")
     # segments = [df]
     # columns = [list(df.columns)]
     # print(columns)
@@ -355,6 +362,7 @@ def generate_interpolated_data(
     # print("df shape:", df.shape)
     # print("interp input shape:", segments[0].shape)
 
+    "INTERPOLATE SEGMENTS"
     segments_uni, columns = interpolate_segments(
             segments,
             int_interval_s=interval_s,
@@ -385,10 +393,15 @@ def preprocess_pipe(input_data_path, interval_s=10, include_time=False, split_in
     return segments, columns
 
 
-@measure_real_time_decorator
+# @measure_real_time_decorator
 def split_df_to_segments(dataframe, split_s=1800, minimum_samples_per_segment=10):
+    # print(f"Spliting dataframe: {dataframe.shape}")
+
     diff_s = np.abs(np.diff(dataframe['timestamp_ns'] / 1e9))
     nodes = np.argwhere(diff_s >= split_s).ravel()
+
+    # print(f"Split data into: {len(nodes)} pieces: {nodes}")
+    # print(nodes)
 
     if len(nodes) <= 0:
         return [dataframe]
@@ -400,32 +413,61 @@ def split_df_to_segments(dataframe, split_s=1800, minimum_samples_per_segment=10
         segm = dataframe.iloc[start:stop, :]
         if len(segm) >= minimum_samples_per_segment:
             segments.append(segm)
+            # print(f"Adding segment: {start}-{stop}")
+        # else:
+        #     print(f"Not adding segment: {start}-{stop}")
 
     if len(nodes) <= 0 and len(dataframe) >= minimum_samples_per_segment:
         segments = [dataframe]
 
     elif nodes[-1] != len(dataframe):
-        segments.append(dataframe.iloc[nodes[-1]:, :])
+        last_segm = dataframe.iloc[nodes[-1]:, :]
+        if len(last_segm) >= minimum_samples_per_segment:
+            segments.append(dataframe.iloc[nodes[-1]:, :])
+            # print(f"Adding last segment: ({nodes[-1]}:)")
+        # else:
+        #     print(f"Not adding last segment: {nodes[-1]}:")
+    # else:
+    #         print("All fine.")
 
     return segments
 
 
 if __name__ == "__main__":
+    import sys
+
+
     os.makedirs(path_data_clean_folder, exist_ok=True)
     use('ggplot')
-    np.set_printoptions(suppress=True)
+    # np.set_printoptions(suppress=True)
+    np.set_printoptions(threshold=np.inf, formatter=dict(int='{:d}'.format))
 
     "CLEAN"
     input_data_path = folder_danych + "obv_600.txt"
     dataframe = pd.read_csv(input_data_path)
     dataframe = preprocess(dataframe)
 
-    for num in dataframe.loc[:5, 'timestamp_ns'].to_numpy() / 1e9:
-        print(num)
+    # for num in dataframe.loc[:5, 'timestamp_ns'].to_numpy() / 1e9:
+    #     print(num)
 
-    segments1 = split_df_to_segments(dataframe, 1800)
+    # segments1 = split_df_to_segments(dataframe, 1800)
     # print(len(segments1))
-    # segments, columns = preprocess_pipe(input_data_path, split_interval_s=1800)
+    segments, columns = preprocess_pipe(input_data_path, split_interval_s=1800, include_time=True)
+    # print(segments[])
+    first = segments[0]
+    first = first.astype(int)
+    # print(first)
+    # print(first[:5, 0])
+
+    from common_functions import to_sequences_forward
+
+
+    train_segments, _ = to_sequences_forward(segments[0], 10, [1])
+    train_segments = train_segments.astype(int)
+
+    print("RES:")
+    print(train_segments[:5, :5, 0])
+
     # print(len(segments))
     # print(columns[0], type(columns[0]))
     #
@@ -436,5 +478,5 @@ if __name__ == "__main__":
     # print(f"price ind: {price_ind}")
     # plt.plot(segments[0][:, price_ind])
     # plt.show()
-    for i, seg in enumerate(segments1):
-        print(i, len(seg))
+    # for i, seg in enumerate(segments):
+    #     print(i, len(seg))

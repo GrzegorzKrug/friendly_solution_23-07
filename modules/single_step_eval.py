@@ -5,7 +5,7 @@ from tensorflow import keras
 import os
 import datetime
 
-from random import sample, shuffle
+# from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
 from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
@@ -13,13 +13,13 @@ from common_functions import (
     NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split,
     unpack_evals_to_table,
 )
-from reward_functions import RewardStore
+# from reward_functions import RewardStore
 
-from functools import wraps
+# from functools import wraps
 from collections import deque
 from model_creator import grid_models_generator, model_builder
 
-from io import TextIOWrapper
+# from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
 
 import traceback
@@ -27,12 +27,13 @@ import multiprocessing
 
 import tensorflow as tf
 
-import concurrent
+# import concurrent
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from matplotlib.style import use
+import pandas as pd
 
-from preprocess_data import preprocess_pipe
+from preprocess_data import preprocess, generate_interpolated_data
 import gc
 
 
@@ -453,52 +454,52 @@ if __name__ == "__main__":
     float_feats = 1
     out_sze = 3
 
-    if False:
-        "LOAD Interpolated data"
-        columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
-        print(
-                "Loading file with columns: ", columns,
-        )
-        print(f"Price `last` at col: {price_col}")
-        train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
-    else:
-        files = ["on_balance_volume.txt", 'obv_600.txt']
-        for file_name in files:
-            file_path = path_data_folder + file_name
-            if not os.path.isfile(file_path):
-                print(f"Skipping file: {file_name}")
+    files = ["on_balance_volume.txt"]
+    for file_name in files:
+        file_path = path_data_folder + file_name
+        name, *_ = file_name.split(".")
+
+        print(f"Trying: {file_path}")
+        if not os.path.isfile(file_path):
+            print(f"Skipping file: {file_name}")
+            continue
+
+        gen = grid_models_generator(16, 10, 1, 3)
+
+        interval_s = 10
+        split_interval_s = 1800
+
+        # for model in gen:
+
+        for i in range(157):
+            loaded_df = pd.read_csv(file_path).loc[:11 + i, :]
+            # print(f"Loaded df:", dataframe.shape)
+            # print(dataframe['Date'])
+            # print(dataframe)
+            # ser_date = dataframe['Date']
+            # print(ser_date.dtype)
+            # mask = ser_date >= "2023-5-29"
+            # print(mask)
+            # print(np.argmax(mask))
+            #
+            # print(ser_date > "2023-5-29")
+            # print(da)
+
+
+            "CLEAN"
+            dataframe = preprocess(loaded_df, first_sample_date="2023-6-15")
+            if len(dataframe) <= 1:
+                print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
                 continue
+            # print("preprocessed", dataframe.shape)
+            # print(dataframe['date'])
 
-            name, *_ = file_name.split(".")
-
-            interval_s = 10
-            segments, columns = preprocess_pipe(file_path, include_time=True, interval_s=interval_s)
-            # train_data = sequences[0]
-            column = columns[0]
-
-            time_col = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
-            price_col = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
-            print(f"Time col: {time_col}, Price col: {price_col}")
-            # print(f"time col: {time_col}")
-
-            samples_n, time_ftrs = segments[0].shape
-            time_ftrs -= 1  # Reduce due to time column
-
-            # price_col = np.argwhere(column == "last").ravel()[0]
-            # price_col = np.argwhere(column == "last").ravel()[0]
-            train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
-
-            print("single segment", train_segments[0].shape)
-
-            evaluate_pipeline(
-                    train_segments, price_col,
-                    time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=500,
-                    workers=2,
-                    games_n=1,
-                    name=f"{name}",
-                    # time_sequences=timestamps_s,
-                    timestamp_col=time_col,
-                    full_eval=False,
+            segments, columns = generate_interpolated_data(
+                    dataframe=dataframe, include_time=False,
+                    interval_s=interval_s, split_interval_s=split_interval_s
             )
-            break
+            print("Loop end:", i, loaded_df.shape, dataframe.shape, len(segments))
+            print("=== " * 3)
+            print()
+
+            # list_ofsequences = [to_sequences_forward(arr, 10, [1])[1] for arr in segments]
