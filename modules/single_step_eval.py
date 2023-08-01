@@ -459,6 +459,8 @@ if __name__ == "__main__":
     out_sze = 3
 
     files = ["on_balance_volume.txt", "obv_600.txt"]
+    dtnow = datetime.datetime.now()
+    datetime_postfix = f"{dtnow.month}.{dtnow.day}-{dtnow.hour}.{dtnow.minute}"
 
     for file in files:
         file_path = path_data_folder + file
@@ -515,57 +517,71 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(path_this_model_folder, "single_bar_eval"), exist_ok=True)
 
             state = 0
-
-            last_data_shp = (0, 0)
+            # last_data_shp = (0, 0)
 
             "LOADING NEW DATA"
             out_df = pd.read_csv(file_path)
             out_df['action'] = -1
 
-            for i in range(50, len(out_df)):
-                loaded_df = pd.read_csv(file_path).loc[:i + 1, :]
+            save_path = os.path.join(path_this_model_folder, "single_bar_eval",
+                                     f"{file_name}-{datetime_postfix}.csv")
 
-                "CLEAN"
-                dataframe = preprocess(loaded_df, first_sample_date=cut_date)
-                if len(dataframe) <= 1:
-                    print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
-                    continue
-                # print("preprocessed", dataframe.shape)
-                # print(dataframe['date'])
+            with open(save_path, "at") as fp:
+                columns = out_df.columns
+                ct = ",".join(cl for cl in columns)
+                fp.write(f"{ct}\n")
 
-                segments, columns = generate_interpolated_data(
-                        dataframe=dataframe, include_time=False,
-                        interval_s=interval_s, split_interval_s=split_interval_s
-                )
+                for i in range(50, len(out_df)):
+                    t0 = time.time()
+                    loaded_df = pd.read_csv(file_path).loc[:i + 1, :]
 
-                list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
-                if len(list_ofsequences) <= 0:
-                    print(f"Skipping iteration: {i} too few sequences")
-                    continue
+                    "CLEAN"
+                    dataframe = preprocess(loaded_df, first_sample_date=cut_date)
+                    if len(dataframe) <= 1:
+                        print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                        row = out_df.iloc[i]
+                        fp.write(','.join(map(str, row)))
+                        fp.write("\n")
+                        continue
 
-                this_data_state = (len(segments), len(list_ofsequences[-1]))
-                # print(f"data state:{this_data_state}")
+                    segments, columns = generate_interpolated_data(
+                            dataframe=dataframe, include_time=False,
+                            interval_s=interval_s, split_interval_s=split_interval_s
+                    )
 
-                pred_state = np.array(state).reshape(1, 1)
-                pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
-                predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
-                # print(f"Predict shape: x,3: {predicted.shape}")
-                # print(predicted)
-                act = np.argmax(predicted, axis=1)[0]
+                    list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
+                    if len(list_ofsequences) <= 0:
+                        print(f"Skipping iteration: {i} too few sequences")
+                        row = out_df.iloc[i]
+                        fp.write(','.join(map(str, row)))
+                        fp.write("\n")
+                        continue
 
-                # print(i, f"Act: {act}")
-                out_df.loc[i, 'action'] = act
+                    this_data_state = (len(segments), len(list_ofsequences[-1]))
+                    # print(f"data state:{this_data_state}")
 
-                "Post state eval"
-                if act == 0:
-                    state = 1
-                else:
-                    state = 0
+                    pred_state = np.array(state).reshape(1, 1)
+                    pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
+                    predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                    # print(f"Predict shape: x,3: {predicted.shape}")
+                    # print(predicted)
+                    act = np.argmax(predicted, axis=1)[0]
 
-            save_path = os.path.join(path_this_model_folder, "single_bar_eval", f"{file_name}.csv")
-            out_df: pd.DataFrame
-            out_df.to_csv(save_path, index=False)
-            print(f"Saved data to: {save_path}")
+                    out_df.loc[i, 'action'] = act
+                    row = out_df.iloc[i]
+                    fp.write(','.join(map(str, row)))
+                    fp.write("\n")
+
+                    "Post state eval"
+                    if act == 0:
+                        state = 1
+                    elif act == 2:
+                        state = 0
+
+                    loop_dur = time.time() - t0
+                    print(i,
+                          f"Loop duration: {loop_dur:>3.2}s",
+                          f"Act: {act}, {i / len(out_df) * 100:>4.1f}%")
 
             del model_keras
             tf.keras.backend.clear_session()
