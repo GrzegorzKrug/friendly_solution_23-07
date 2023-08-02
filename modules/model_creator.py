@@ -75,7 +75,7 @@ def compile_decorator(**optimkwargs):
 
 @ArchRegister.register(1)
 @compile_decorator()
-def arch_1(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_1(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -87,7 +87,7 @@ def arch_1(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(2)
 @compile_decorator()
-def arch_2(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_2(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -99,7 +99,7 @@ def arch_2(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(3)
 @compile_decorator()
-def arch_3(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_3(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -111,7 +111,7 @@ def arch_3(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(4)
 @compile_decorator()
-def arch_4(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_4(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -123,7 +123,7 @@ def arch_4(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(5)
 @compile_decorator()
-def arch_5(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_5(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -135,7 +135,7 @@ def arch_5(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(40)
 @compile_decorator()
-def arch_40(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_40(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, float_only_nodes=6)
 
@@ -144,7 +144,7 @@ def arch_40(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(50)
 @compile_decorator()
-def arch_55(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_55(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2pipes(time_feats, time_window, float_feats, out_size, nodes, common_nodes=3)
 
@@ -153,7 +153,7 @@ def arch_55(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(60)
 @compile_decorator()
-def arch_60(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_60(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_pyramid(
             float_feats, nodes, out_size, time_feats, time_window,
@@ -166,7 +166,7 @@ def arch_60(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(70)
 @compile_decorator()
-def arch_70(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_70(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_pyramid(
             float_feats, nodes, out_size, time_feats, time_window,
@@ -179,7 +179,7 @@ def arch_70(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(101)
 @compile_decorator()
-def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_101(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -190,7 +190,7 @@ def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(102)
 @compile_decorator()
-def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_102(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -201,7 +201,7 @@ def arch_101(time_feats, time_window, float_feats, out_size, nodes=20):
 
 @ArchRegister.register(103)
 @compile_decorator()
-def arch_103(time_feats, time_window, float_feats, out_size, nodes=20):
+def arch_103(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes, common_nodes=2,
@@ -426,13 +426,14 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
 
 
 def model_builder(
-        arch_num, time_feats, time_window, float_feats, out_size,
+        arch_num, iteration, time_feats, time_window, float_feats, out_size,
         loss, nodes, lr):
     arch = ArchRegister.funcs[arch_num]
-    # model = None
+
     model = arch(
             time_feats, time_window, float_feats, out_size, nodes,
-            compile=False
+            iteration=iteration,
+            compile=False,
     )
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")

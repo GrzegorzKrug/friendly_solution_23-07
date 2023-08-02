@@ -388,68 +388,7 @@ def single_model_evaluate(
     tf.keras.backend.clear_sesion()
 
 
-def evaluate_pipeline(
-        train_segments, price_col,
-        time_wind, time_ftrs,
-        workers=4, games_n=5,
-        # uniform_games=True,
-        game_duration=250, name="",
-        # time_sequences=None,
-        timestamp_col=None,
-        full_eval=False,
-):
-    # n,time_wind,time_ftrs
-    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    # gen1 = dummy_grid_generator()
-    # for data in gen1:
-    #     single_model_training_function(*data)
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        process_list = []
-        for counter, data in enumerate(gen1):
-            if counter != 3:
-                continue
-            # if counter != 7:
-            #     continue
-            proc = executor.submit(
-                    single_model_evaluate, *data, train_segments, price_col,
-                    games_n, game_duration, name,
-                    # time_sequences=time_sequences,
-                    full_eval=full_eval,
-                    timestamp_col=timestamp_col,
-            )
-            process_list.append(proc)
-            print(f"Adding eval model: {counter}")
-            # if counter >= 4:
-            #     break
-
-            # while True
-            # break
-        # proc.e
-        #     results.append(proc)
-        print("Waiting:")
-        # result = concurrent.futures.wait(process_list)
-        # print("Waiting finished.")
-        for proc in process_list:
-            proc.result()
-
-        print("All processes have ended...")
-
-        results = [proc.result() for proc in process_list]
-        # print("results:")
-        # print(results)
-
-        tab = unpack_evals_to_table(results)
-        # print(tab)
-        now = datetime.datetime.now()
-        dt_str = f"{now.day}.{now.month}-{now.hour}.{now.minute}"
-        with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
-            fp.write(str(tab))
-            fp.write("\n")
-
-
-if __name__ == "__main__":
-    use('ggplot')
-
+def run_single_evals_for_allmodels():
     gpus = tf.config.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
@@ -496,7 +435,7 @@ if __name__ == "__main__":
             )
 
             naming_ob = NamingClass(
-                    arch_num, ITERATION,
+                    arch_num, iteration=ITERATION,
                     time_feats=time_feats, time_window=time_window, float_feats=float_feats,
                     outsize=out_size,
                     node_size=nodes, reward_fnum=6,
@@ -537,7 +476,6 @@ if __name__ == "__main__":
                     t0 = time.time()
                     loaded_df = pd.read_csv(file_path).iloc[last_segment_end:i + 1, :]
 
-
                     "CLEAN"
                     dataframe = preprocess(loaded_df, first_sample_date=cut_date)
                     if len(dataframe) <= 1:
@@ -572,15 +510,9 @@ if __name__ == "__main__":
                             was_ok = False
                         continue
 
-                    # this_data_state = (len(segments), len(list_ofsequences[-1]))
-                    # print(f"data state:{this_data_state}")
-
                     pred_state = np.array(state).reshape(1, 1)
-                    # pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
                     pred_arr = current_sequence[-1, :, :].reshape(1, time_wind, 16)
                     predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
-                    # print(f"Predict shape: x,3: {predicted.shape}")
-                    # print(predicted)
                     act = np.argmax(predicted, axis=1)[0]
 
                     out_df.loc[i, 'action'] = act
@@ -603,3 +535,185 @@ if __name__ == "__main__":
             del model_keras
             tf.keras.backend.clear_session()
             tf.compat.v1.reset_default_graph()
+
+
+def start_continous_eval(
+        input_file_path, output_file_path, model,
+        start_on_last_sample=True,
+        predict_each_new_bar=True,
+):
+    pass
+
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+import watchdog
+
+
+# class FileHandler(FileSystemEventHandler):
+#     def __init__(self, callback):
+#         # self.filename = filename
+#         self.callback = callback
+#         # self.last_line = None
+#
+#     def on_any_event(self, event):
+#         print(f"Any event: {event}")
+#
+#     def on_modified(self, event):
+#         print("Modified event")
+#         self.callback()
+class FilePatternHandler(watchdog.events.PatternMatchingEventHandler):
+    def __init__(self):
+        watchdog.events.PatternMatchingEventHandler.__init__(
+                self,
+                patterns=["*.txt"],
+                ignore_directories=True,
+                case_sensitive=False,
+        )
+
+    def on_any_event(self, event):
+        print(f"Any event occured: {event}")
+
+
+def dummy(*a):
+    print(f"A: {a}")
+
+
+if __name__ == "__main__":
+    split_interval_s = 1800
+    interval_s = 10,
+
+    time_feats = 16
+    time_window = 10
+    float_feats = 1
+    out_size = 3
+
+    arch_num = 1
+    iteration = 0
+    nodes = 1000
+    reward_fnum = 6
+    lr = "1e-05"
+    loss = 'huber'  # 'mae'
+    batch = 500
+    discount = '0.9'
+
+    model_keras = model_builder(
+            arch_num, iteration,
+            time_feats, time_window, float_feats, out_size, loss, nodes, lr
+    )
+    naming_ob = NamingClass(
+            arch_num, iteration=ITERATION,
+            time_feats=time_feats, time_window=time_window, float_feats=float_feats,
+            outsize=out_size,
+            node_size=nodes, reward_fnum=6,
+            learning_rate=lr, loss=loss, batch=batch,
+            discount=discount,
+    )
+
+    weights_path = os.path.join(path_models, naming_ob.path, "weights.keras")
+    if os.path.isfile(weights_path):
+        print("Got weights.")
+        # model.load_weights
+        # start_continous_eval()
+    else: print(f"Found no weights: {weights_path}")
+
+    input_filepath = os.path.abspath(os.path.join(path_data_folder, "test_bal.txt"))
+    output_filepath = os.path.join(path_data_folder, "wyniki.txt")
+
+    print("READY FOR NEW SAMPLES")
+
+    state = 0
+    last_segment_end = 0
+    last_size = os.path.getsize(input_filepath)
+    loadead_df = pd.read_csv(input_filepath)
+    last_bar_ind = len(loadead_df) - 1
+    was_ok = True
+    was_file = os.path.isfile(output_filepath)
+
+    with open(output_filepath, "at", buffering=1) as fp:
+        if not was_file:
+            columns = loadead_df.columns
+            ct = ",".join(cl for cl in columns)
+            fp.write(f"{ct}\n")
+
+        while True:
+            time.sleep(0.5)
+            size = os.path.getsize(input_filepath)
+            if last_size == size:
+                continue
+
+            last_size = size
+            # print(f"New size: {size}")
+
+            loadead_df = pd.read_csv(input_filepath)
+            # print(f"Shape: {loadead_df.shape}")
+            missing_predictions = len(loadead_df) - 1 - last_bar_ind
+            print(f"File has changed by {missing_predictions} entries")
+            # print(f"Missing predictions: {missing_predictions}")
+
+            for i in range(missing_predictions):
+                dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
+                # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
+                t0 = time.time()
+
+                "CLEAN"
+                dataframe = preprocess(dataframe, first_sample_date=None)
+                if len(dataframe) <= 1:
+                    print(f"{i} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                    # row = out_df.iloc[i]
+                    ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                    fp.write(','.join(map(str, ser)))
+                    fp.write(",-1")
+                    fp.write("\n")
+                    state = 0
+
+                    if was_ok:
+                        last_segment_end = last_bar_ind + 1 + i
+                        was_ok = False
+                    continue
+
+                segments, columns = generate_interpolated_data(
+                        dataframe=dataframe, include_time=False,
+                        interval_s=interval_s, split_interval_s=split_interval_s
+                )
+
+                # list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
+                current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
+                # print(f"current sequence: {current_sequence.shape}")
+
+                if len(current_sequence) <= 0:
+                    print(f"{i} RESET: Skipping iteration: {i} too short sequence")
+                    ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                    # ser['act'] = -1
+                    fp.write(','.join(map(str, ser)))
+                    fp.write(",-1")
+                    fp.write("\n")
+                    state = 0
+                    if was_ok:
+                        last_segment_end = last_bar_ind + 1 + i
+                        was_ok = False
+                    continue
+
+                pred_state = np.array(state).reshape(1, 1)
+                pred_arr = current_sequence[-1, :, :].reshape(1, time_window, 16)
+                predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                act = np.argmax(predicted, axis=1)[0]
+
+                ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                fp.write(','.join(map(str, ser)))
+                fp.write(f",{act}")
+                fp.write("\n")
+
+                "Post state eval"
+                if act == 0:
+                    state = 1
+                elif act == 2:
+                    state = 0
+
+                loop_dur = time.time() - t0
+                print(last_bar_ind + i + 1, i,
+                      f"Loop duration: {loop_dur:>5.2}s",
+                      f"Act: {act}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
+                was_ok = True
+
+            last_bar_ind = len(loadead_df) - 1
