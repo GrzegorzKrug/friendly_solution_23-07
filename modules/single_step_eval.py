@@ -618,8 +618,8 @@ if __name__ == "__main__":
         # start_continous_eval()
     else: print(f"Found no weights: {weights_path}")
 
-    input_filepath = os.path.join(path_data_folder, "test_bal.txt")
-    output_filepath = os.path.join(path_data_folder, "wyniki.txt")
+    input_filepath = os.path.join(path_data_folder, "test_updating.txt")
+    output_filepath = os.path.join(path_data_folder, "test_wyniki.txt")
 
     print("READY FOR NEW SAMPLES")
 
