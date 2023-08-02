@@ -535,7 +535,8 @@ if __name__ == "__main__":
 
                 for i in range(1, len(out_df)):
                     t0 = time.time()
-                    loaded_df = pd.read_csv(file_path).loc[last_segment_end:i + 1, :]
+                    loaded_df = pd.read_csv(file_path).iloc[last_segment_end:i + 1, :]
+
 
                     "CLEAN"
                     dataframe = preprocess(loaded_df, first_sample_date=cut_date)
@@ -596,7 +597,7 @@ if __name__ == "__main__":
                     loop_dur = time.time() - t0
                     print(i,
                           f"Loop duration: {loop_dur:>5.2}s",
-                          f"Act: {act}, {i / len(out_df) * 100:>4.1f}% (index {last_segment_end}:{i+1})")
+                          f"Act: {act}, {i / len(out_df) * 100:>4.1f}% (index {last_segment_end}:{i + 1})")
                     was_ok = True
 
             del model_keras
