@@ -426,8 +426,8 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
 
 
 def model_builder(
-        arch_num, iteration, time_feats, time_window, float_feats, out_size,
-        loss, nodes, lr):
+        arch_num, time_feats, time_window, float_feats, out_size,
+        loss, nodes, lr, iteration=0, ):
     arch = ArchRegister.funcs[arch_num]
 
     model = arch(

@@ -598,8 +598,9 @@ if __name__ == "__main__":
     discount = '0.9'
 
     model_keras = model_builder(
-            arch_num, iteration,
-            time_feats, time_window, float_feats, out_size, loss, nodes, lr
+            arch_num,
+            time_feats, time_window, float_feats, out_size, loss, nodes, lr,
+            iteration=iteration,
     )
     naming_ob = NamingClass(
             arch_num, iteration=ITERATION,
@@ -617,7 +618,7 @@ if __name__ == "__main__":
         # start_continous_eval()
     else: print(f"Found no weights: {weights_path}")
 
-    input_filepath = os.path.abspath(os.path.join(path_data_folder, "test_bal.txt"))
+    input_filepath = os.path.join(path_data_folder, "test_bal.txt")
     output_filepath = os.path.join(path_data_folder, "wyniki.txt")
 
     print("READY FOR NEW SAMPLES")
@@ -659,7 +660,8 @@ if __name__ == "__main__":
                 "CLEAN"
                 dataframe = preprocess(dataframe, first_sample_date=None)
                 if len(dataframe) <= 1:
-                    print(f"{i} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                    print(
+                            f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
                     # row = out_df.iloc[i]
                     ser = loadead_df.iloc[last_bar_ind + 1 + i]
                     fp.write(','.join(map(str, ser)))
@@ -682,7 +684,7 @@ if __name__ == "__main__":
                 # print(f"current sequence: {current_sequence.shape}")
 
                 if len(current_sequence) <= 0:
-                    print(f"{i} RESET: Skipping iteration: {i} too short sequence")
+                    print(f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i} too short sequence")
                     ser = loadead_df.iloc[last_bar_ind + 1 + i]
                     # ser['act'] = -1
                     fp.write(','.join(map(str, ser)))
