@@ -517,6 +517,8 @@ if __name__ == "__main__":
             os.makedirs(os.path.join(path_this_model_folder, "single_bar_eval"), exist_ok=True)
 
             state = 0
+            last_segment_end = 0
+            was_ok = True
             # last_data_shp = (0, 0)
 
             "LOADING NEW DATA"
@@ -531,17 +533,22 @@ if __name__ == "__main__":
                 ct = ",".join(cl for cl in columns)
                 fp.write(f"{ct}\n")
 
-                for i in range(50, len(out_df)):
+                for i in range(1, len(out_df)):
                     t0 = time.time()
-                    loaded_df = pd.read_csv(file_path).loc[:i + 1, :]
+                    loaded_df = pd.read_csv(file_path).loc[last_segment_end:i + 1, :]
 
                     "CLEAN"
                     dataframe = preprocess(loaded_df, first_sample_date=cut_date)
                     if len(dataframe) <= 1:
-                        print(f"Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                        print(f"{i} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
                         row = out_df.iloc[i]
                         fp.write(','.join(map(str, row)))
                         fp.write("\n")
+                        state = 0
+
+                        if was_ok:
+                            last_segment_end = i - 1
+                            was_ok = False
                         continue
 
                     segments, columns = generate_interpolated_data(
@@ -549,19 +556,27 @@ if __name__ == "__main__":
                             interval_s=interval_s, split_interval_s=split_interval_s
                     )
 
-                    list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
-                    if len(list_ofsequences) <= 0:
-                        print(f"Skipping iteration: {i} too few sequences")
+                    # list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
+                    current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
+                    # print(f"current sequence: {current_sequence.shape}")
+
+                    if len(current_sequence) <= 0:
+                        print(f"{i} RESET: Skipping iteration: {i} too short sequence")
                         row = out_df.iloc[i]
                         fp.write(','.join(map(str, row)))
                         fp.write("\n")
+                        state = 0
+                        if was_ok:
+                            last_segment_end = i - 1
+                            was_ok = False
                         continue
 
-                    this_data_state = (len(segments), len(list_ofsequences[-1]))
+                    # this_data_state = (len(segments), len(list_ofsequences[-1]))
                     # print(f"data state:{this_data_state}")
 
                     pred_state = np.array(state).reshape(1, 1)
-                    pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
+                    # pred_arr = list_ofsequences[-1][-1, :, :].reshape(1, time_wind, 16)
+                    pred_arr = current_sequence[-1, :, :].reshape(1, time_wind, 16)
                     predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
                     # print(f"Predict shape: x,3: {predicted.shape}")
                     # print(predicted)
@@ -580,8 +595,9 @@ if __name__ == "__main__":
 
                     loop_dur = time.time() - t0
                     print(i,
-                          f"Loop duration: {loop_dur:>3.2}s",
-                          f"Act: {act}, {i / len(out_df) * 100:>4.1f}%")
+                          f"Loop duration: {loop_dur:>5.2}s",
+                          f"Act: {act}, {i / len(out_df) * 100:>4.1f}% (index {last_segment_end}:{i+1})")
+                    was_ok = True
 
             del model_keras
             tf.keras.backend.clear_session()
