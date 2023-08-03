@@ -111,7 +111,7 @@ def eval_func(
     # session_dataframe = pd.DataFrame(columns=['eps', 'session_num', 'ind_start', 'ind_end', 'gain'])
 
     LOOP_TIMES = deque(maxlen=100)
-    agents_n = 1
+    AGENTS_N = 1
     use('ggplot')
     colors = (
             (0, 0, 0),
@@ -175,12 +175,12 @@ def eval_func(
 
             print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
 
-        agents_discrete_states, hidden_states = initialize_agents(agents_n)
+        agents_discrete_states, hidden_states = initialize_agents(AGENTS_N)
 
         "Actions:"
         "0, 1, 2"
-        "Sell, Pass, Buy"
-        starttime = time.time()
+        "Buy, Pass, Sell"
+        # starttime = time.time()
 
         how_many_actions = 0
         how_many_valid = 0
@@ -193,12 +193,10 @@ def eval_func(
         for i_sample in range(ses_start, ses_end):  # Never in done state
 
             timesegment_2d = ordered_list_of3dsequences[i_sample, :]
-            timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
+            timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (AGENTS_N, 1, 1))
 
             # if not i_sample % WALK_INTERVAL_DEBUG:
             #     print(f"Walking sample: {i_sample}")
-
-            "MOVE TO IF BELOW"
 
             q_vals = model_keras.predict(
                     [timesegment_stacked, agents_discrete_states],

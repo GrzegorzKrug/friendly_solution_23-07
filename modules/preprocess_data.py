@@ -64,6 +64,7 @@ def timestr_to_seconds(x: str):
 
 def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = None):
     """"""
+    df = df.copy()
     # print("Processing data")
 
     if first_sample_date:
@@ -335,7 +336,6 @@ def generate_interpolated_data(
     else:
         segments = split_df_to_segments(df, split_s=split_interval_s, minimum_samples_per_segment=5)
 
-
     "INTERPOLATE SEGMENTS"
     segments_uni, columns = interpolate_segments(
             segments,
@@ -440,7 +440,8 @@ if __name__ == "__main__":
     train_segments = train_segments.astype(int)
 
     print("RES:")
-    print(train_segments[:5, :5, 0])
+    print(train_segments[0].shape)
+    # print(train_segments[:5, :5, 0])
 
     # print(len(segments))
     # print(columns[0], type(columns[0]))

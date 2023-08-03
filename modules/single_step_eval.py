@@ -478,6 +478,7 @@ def run_single_evals_for_allmodels():
 
                     "CLEAN"
                     dataframe = preprocess(loaded_df, first_sample_date=cut_date)
+
                     if len(dataframe) <= 1:
                         print(f"{i} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
                         row = out_df.iloc[i]
@@ -655,7 +656,8 @@ if __name__ == "__main__":
             # print(f"Missing predictions: {missing_predictions}")
 
             for i in range(missing_predictions):
-                dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
+                # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
+                dataframe = loadead_df.copy().iloc[:last_bar_ind + i + 2].copy()
                 # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
                 t0 = time.time()
 
@@ -680,6 +682,7 @@ if __name__ == "__main__":
                         dataframe=dataframe, include_time=False,
                         interval_s=interval_s, split_interval_s=split_interval_s
                 )
+                # print(f"Splitted into {len(segments)} segments")
 
                 # list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
                 current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
@@ -698,16 +701,24 @@ if __name__ == "__main__":
                         was_ok = False
                     continue
 
-                pred_state = np.array(state).reshape(1, 1)
+                # print(f"Predicting from sequences: {current_sequence.shape}")
+
+                pred_state = np.array(state).reshape(1, 1, 1)
+                # pred_arr = current_sequence[-1, :, :][np.newaxis, :, :]
                 pred_arr = current_sequence[-1, :, :].reshape(1, time_window, 16)
+                # print(f"Pred state: {pred_state}, {pred_state.shape}")
+                # print(f"Predict shapes: {pred_arr.shape}, {pred_state.shape}")
                 predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
                 act = np.argmax(predicted, axis=1)[0]
+                print(f"Predicted: {predicted}")
+                # print(f"Act: {act} from state: {state}")
 
                 ser = loadead_df.iloc[last_bar_ind + 1 + i]
                 fp.write(','.join(map(str, ser)))
                 fp.write(f",{act}")
                 fp.write("\n")
 
+                prev_state=state
                 "Post state eval"
                 if act == 0:
                     state = 1
@@ -718,7 +729,9 @@ if __name__ == "__main__":
                 loop_dur = time.time() - t0
                 print(last_bar_ind + i + 1, i,
                       f"Loop duration: {loop_dur:>5.2}s",
-                      f"Act: {act}, State:{state}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
+                      f"Act: {act}, End state:{state}, was state: {prev_state}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
+                print()
                 was_ok = True
 
             last_bar_ind = len(loadead_df) - 1
+            print("========")

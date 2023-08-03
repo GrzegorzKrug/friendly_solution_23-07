@@ -156,15 +156,15 @@ def interp_1d_sub(tm_uni, tm, vals):
     return vals_uni
 
 
-def to_sequences_forward(array, seq_size=1, fwd_intervals=[1]):
+def to_sequences_forward(arr_2d, seq_size=1, fwd_intervals=[1]):
     x = []
     y = []
     offset_arr = np.array(fwd_intervals) - 1
     last_minus = max(fwd_intervals) - 1
-    for i in range(len(array) - seq_size - last_minus):
-        window = array[i:(i + seq_size), :]
+    for i in range(len(arr_2d) - seq_size - last_minus):
+        window = arr_2d[i:(i + seq_size), :]
         x.append(window)
-        sub_arr = array[i + seq_size + offset_arr, :]
+        sub_arr = arr_2d[i + seq_size + offset_arr, :]
         y.append(sub_arr)
 
     return np.array(x, dtype=np.float32), np.array(y, np.float32)
@@ -237,6 +237,15 @@ def load_data_split(path, train_split=0.65, ):
 
 
 def unpack_evals_to_table(res_list, add_summary=True):
+    """
+
+    Args:
+        res_list:
+        add_summary:
+
+    Returns:
+        prettytable.PrettyTable
+    """
     table = prettytable.PrettyTable()
     if add_summary:
         columns = ["Sum gain:", "Sum valids:"]
