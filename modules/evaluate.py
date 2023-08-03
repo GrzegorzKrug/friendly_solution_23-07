@@ -158,6 +158,8 @@ def eval_func(
             ses_end = 5
         else:
             ses_start = np.random.randint(0, n_samples - 1 - session_size)
+            if ses_start <= 0:
+                ses_start = 0
             ses_end = ses_start + session_size
             print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
 
@@ -377,13 +379,13 @@ def single_model_evaluate(
 
     "Clear memory?"
     del model
-    tf.keras.backend.clear_sesion()
+    tf.keras.backend.clear_session()
     del train_segments
     print("Cleared memory... ?")
 
     collected = gc.collect()
     print(f"Collected: {collected}")
-    tf.keras.backend.clear_sesion()
+    tf.keras.backend.clear_session()
 
 
 def evaluate_pipeline(
@@ -404,8 +406,8 @@ def evaluate_pipeline(
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
-            if counter != 3:
-                continue
+            # if counter not in [1, 3]:
+            #     continue
             # if counter != 7:
             #     continue
             proc = executor.submit(
@@ -492,9 +494,9 @@ if __name__ == "__main__":
             evaluate_pipeline(
                     train_segments, price_col,
                     time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=500,
-                    workers=2,
-                    games_n=1,
+                    game_duration=300,
+                    workers=6,
+                    games_n=30,
                     name=f"{name}",
                     # time_sequences=timestamps_s,
                     timestamp_col=time_col,
