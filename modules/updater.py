@@ -18,8 +18,8 @@ if __name__ == "__main__":
         fp.write("\n")
 
     with open(output_filepath, "at", buffering=1)as fp:
-        for i in range(104300, len(dataframe)):
-            time.sleep(np.random.random() * 0.1 + 0.01)
+        for i in range(1, len(dataframe)):
+            time.sleep(np.random.random() * 0.1 + 0.1)
             ser = dataframe.iloc[i, :]
             fp.write(','.join(map(str, ser)))
             fp.write("\n")

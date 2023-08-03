@@ -580,24 +580,26 @@ def dummy(*a):
     print(f"A: {a}")
 
 
-if __name__ == "__main__":
-    split_interval_s = 1800
-    interval_s = 10,
+def start_stream_predict(
+        input_filepath,
 
-    time_feats = 16
-    time_window = 10
-    float_feats = 1
-    out_size = 3
+        time_feats=16,
+        time_window=10,
+        float_feats=1,
+        out_size=3,
 
-    arch_num = 1
-    iteration = 0
-    nodes = 1000
-    reward_fnum = 6
-    lr = "1e-06"
-    loss = 'mae'  # 'mae'
-    batch = 500
-    discount = '0.9'
+        arch_num=101,
+        iteration=0,
+        nodes=1000,
+        reward_fnum=6,
+        lr="1e-05",
+        loss='mae',
+        batch=500,
+        discount='0.9',
 
+        split_interval_s=1800,
+        interval_s=10,
+):
     model_keras = model_builder(
             arch_num,
             time_feats, time_window, float_feats, out_size, loss, nodes, lr,
@@ -607,7 +609,7 @@ if __name__ == "__main__":
             arch_num, iteration=ITERATION,
             time_feats=time_feats, time_window=time_window, float_feats=float_feats,
             outsize=out_size,
-            node_size=nodes, reward_fnum=6,
+            node_size=nodes, reward_fnum=reward_fnum,
             learning_rate=lr, loss=loss, batch=batch,
             discount=discount,
     )
@@ -615,14 +617,10 @@ if __name__ == "__main__":
     weights_path = os.path.join(path_models, naming_ob.path, "weights.keras")
     if os.path.isfile(weights_path):
         print("Got weights.")
-        # model.load_weights
-        # start_continous_eval()
+        model_keras.load_weights(weights_path)
     else:
         print(f"Found no weights: {weights_path}")
         raise ValueError(f"Model not found: {weights_path}")
-
-    input_filepath = os.path.join(path_data_folder, "test_updating.txt")
-    output_filepath = os.path.join(path_data_folder, "test_wyniki.txt")
 
     print("READY FOR NEW SAMPLES")
 
@@ -632,6 +630,10 @@ if __name__ == "__main__":
     loadead_df = pd.read_csv(input_filepath)
     last_bar_ind = len(loadead_df) - 1
     was_ok = True
+    output_filepath = os.path.join(
+            os.path.dirname(input_filepath),
+            f"test_{arch_num:>03}_{lr}_{loss}.txt"
+    )
     was_file = os.path.isfile(output_filepath)
 
     with open(output_filepath, "at", buffering=1) as fp:
@@ -718,7 +720,7 @@ if __name__ == "__main__":
                 fp.write(f",{act}")
                 fp.write("\n")
 
-                prev_state=state
+                prev_state = state
                 "Post state eval"
                 if act == 0:
                     state = 1
@@ -730,8 +732,16 @@ if __name__ == "__main__":
                 print(last_bar_ind + i + 1, i,
                       f"Loop duration: {loop_dur:>5.2}s",
                       f"Act: {act}, End state:{state}, was state: {prev_state}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
-                print()
                 was_ok = True
 
             last_bar_ind = len(loadead_df) - 1
             print("========")
+
+
+if __name__ == "__main__":
+    input_filepath = os.path.join(path_data_folder, "test_updating.txt")
+
+    start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
+    # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', )
+    # start_stream_predict(input_filepath, arch_num=101, loss='mae', lr='1e-05', )
+    # start_stream_predict(input_filepath, arch_num=1, loss='mae', lr='1e-06', )
