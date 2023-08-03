@@ -458,6 +458,8 @@ def evaluate_pipeline(
             fp.write(str(tab))
             fp.write("\n")
 
+        print(f"Saved evals to: evals-{name}-{dt_str}.txt")
+
 
 if __name__ == "__main__":
     use('ggplot')
@@ -475,7 +477,7 @@ if __name__ == "__main__":
         print(f"Price `last` at col: {price_col}")
         train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
     else:
-        files = ["on_balance_volume.txt", 'obv_600.txt']
+        files = ["obv_600.txt", "on_balance_volume.txt"]
         for file_name in files:
             file_path = path_data_folder + file_name
             if not os.path.isfile(file_path):
@@ -507,11 +509,11 @@ if __name__ == "__main__":
                     train_segments, price_col,
                     time_wind=time_wind, time_ftrs=time_ftrs,
                     game_duration=300,
-                    workers=6,
+                    workers=5,
                     games_n=30,
                     name=f"{name}",
                     # time_sequences=timestamps_s,
                     timestamp_col=time_col,
                     full_eval=False,
             )
-            break
+            # break
