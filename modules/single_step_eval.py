@@ -622,8 +622,6 @@ def start_stream_predict(
         print(f"Found no weights: {weights_path}")
         raise ValueError(f"Model not found: {weights_path}")
 
-    print("READY FOR NEW SAMPLES")
-
     state = 0
     last_segment_end = 0
     last_size = os.path.getsize(input_filepath)
@@ -635,6 +633,10 @@ def start_stream_predict(
             f"test_{arch_num:>03}_{lr}_{loss}.txt"
     )
     was_file = os.path.isfile(output_filepath)
+
+    print("READY FOR NEW SAMPLES")
+    print(f"Model: {naming_ob.path}")
+    print(f"Output file: {output_filepath}")
 
     with open(output_filepath, "at", buffering=1) as fp:
         if not was_file:
