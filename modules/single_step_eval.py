@@ -661,7 +661,7 @@ def start_stream_predict(
 
             for i in range(missing_predictions):
                 # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
-                dataframe = loadead_df.iloc[:last_bar_ind + i + 2].copy()
+                dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2].copy()
                 # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
                 t0 = time.time()
 
