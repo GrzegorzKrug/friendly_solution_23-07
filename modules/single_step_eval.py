@@ -632,7 +632,7 @@ def start_stream_predict(
     if output_filepath is None:
         output_filepath = os.path.join(
                 os.path.dirname(input_filepath),
-                f"test_{arch_num:>03}_{lr}_{loss}.txt"
+                f"predicting_{arch_num:>03}_{lr}_{loss}.txt"
         )
 
     was_file = os.path.isfile(output_filepath)
@@ -745,8 +745,9 @@ def start_stream_predict(
 
 if __name__ == "__main__":
     # input_filepath = os.path.join(path_data_folder, "test_updating.txt")
-    input_filepath = os.path.join("mnt", "export", "obv_600.txt")
+    input_filepath = "/mnt/c/export/obv_600.txt"
     print(f"Is file: {os.path.isfile(input_filepath)}, {input_filepath}")
+    start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
 
     # start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
     # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', )
