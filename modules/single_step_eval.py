@@ -616,7 +616,9 @@ if __name__ == "__main__":
         print("Got weights.")
         # model.load_weights
         # start_continous_eval()
-    else: print(f"Found no weights: {weights_path}")
+    else:
+        print(f"Found no weights: {weights_path}")
+        raise ValueError(f"Model not found: {weights_path}")
 
     input_filepath = os.path.join(path_data_folder, "test_updating.txt")
     output_filepath = os.path.join(path_data_folder, "test_wyniki.txt")
@@ -709,6 +711,7 @@ if __name__ == "__main__":
                 "Post state eval"
                 if act == 0:
                     state = 1
+
                 elif act == 2:
                     state = 0
 
