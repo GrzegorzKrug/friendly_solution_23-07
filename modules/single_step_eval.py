@@ -746,6 +746,7 @@ def start_stream_predict(
 if __name__ == "__main__":
     # input_filepath = os.path.join(path_data_folder, "test_updating.txt")
     input_filepath = "/mnt/c/export/obv_600.txt"
+    output_filepath = "/home/rafal/predict_1_huber_1e-06.txt"
     print(f"Is file: {os.path.isfile(input_filepath)}, {input_filepath}")
     start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
 
