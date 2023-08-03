@@ -132,6 +132,12 @@ def eval_func(
     if full_eval:
         game_n = len(segments_oftraindata)
         print(f"Full eval, games: {game_n}")
+    else:
+        if game_n > len(segments_oftraindata):
+            game_n = len(segments_oftraindata)
+            print(f"Staring evaluation, games at max size: {game_n}")
+        else:
+            print(f"Staring evaluation, games: {game_n} (of {len(segments_oftraindata)} segments)")
 
     for i_eval_sess in range(game_n):
         "RANDOM SEGMENT"
