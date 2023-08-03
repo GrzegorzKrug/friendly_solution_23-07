@@ -506,9 +506,9 @@ if __name__ == "__main__":
             evaluate_pipeline(
                     train_segments, price_col,
                     time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=300,
+                    game_duration=1000,
                     workers=5,
-                    games_n=30,
+                    games_n=130,
                     name=f"{name}",
                     # time_sequences=timestamps_s,
                     timestamp_col=time_col,
