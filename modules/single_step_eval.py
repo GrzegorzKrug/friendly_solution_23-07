@@ -748,7 +748,7 @@ if __name__ == "__main__":
     input_filepath = "/mnt/c/export/obv_600.txt"
     output_filepath = "/home/rafal/predict_1_huber_1e-06.txt"
     print(f"Is file: {os.path.isfile(input_filepath)}, {input_filepath}")
-    start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
+    start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', output_filepath=output_filepath)
 
     # start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
     # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', )
