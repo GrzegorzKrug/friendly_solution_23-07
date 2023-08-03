@@ -718,7 +718,7 @@ if __name__ == "__main__":
                 loop_dur = time.time() - t0
                 print(last_bar_ind + i + 1, i,
                       f"Loop duration: {loop_dur:>5.2}s",
-                      f"Act: {act}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
+                      f"Act: {act}, State:{state}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
                 was_ok = True
 
             last_bar_ind = len(loadead_df) - 1
