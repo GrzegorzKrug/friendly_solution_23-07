@@ -592,8 +592,8 @@ if __name__ == "__main__":
     iteration = 0
     nodes = 1000
     reward_fnum = 6
-    lr = "1e-05"
-    loss = 'huber'  # 'mae'
+    lr = "1e-06"
+    loss = 'mae'  # 'mae'
     batch = 500
     discount = '0.9'
 
