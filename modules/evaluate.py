@@ -157,10 +157,16 @@ def eval_func(
             print(f"Full eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
             ses_end = 5
         else:
-            ses_start = np.random.randint(0, n_samples - 1 - session_size)
-            if ses_start <= 0:
+            if n_samples - 1 - session_size < 0:
                 ses_start = 0
+            else:
+                ses_start = np.random.randint(0, n_samples - 1 - session_size)
             ses_end = ses_start + session_size
+
+            if ses_end > n_samples:
+                print(f"Reducing ses end to: {n_samples} from {ses_end}")
+                ses_end = n_samples
+
             print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
 
         agents_discrete_states, hidden_states = initialize_agents(agents_n)
