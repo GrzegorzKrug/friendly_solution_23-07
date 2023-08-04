@@ -2,7 +2,6 @@ import numpy as np
 
 import time
 from tensorflow import keras
-import os
 import datetime
 import logger
 
@@ -16,7 +15,7 @@ from reward_functions import RewardStore
 from preprocess_data import preprocess_pipe
 from functools import wraps
 from collections import deque
-from model_creator import grid_models_generator, model_builder
+from model_creator import grid_models_generator, model_builder, grid_models_generator_it2
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
@@ -30,6 +29,7 @@ import gc
 import concurrent
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
+import os
 
 
 # session_dataframe.loc[
@@ -172,12 +172,12 @@ def results_decorator(fun):
 
 @results_decorator
 def train_qmodel(
-        model_keras: keras.Model, datalist_2dsequences_ordered_train,
+        model_keras: keras.Model, segmentslist_alldata3d,
         price_col_ind,
         naming_ob: NamingClass,
-        fulltrain_ntimes=1000,
         agents_n=20,
-        session_size=3600,
+        games_n=1000,
+        game_duration=3600,
 
         allow_train=True, model_memory: ModelMemory = None,
 
@@ -201,6 +201,7 @@ def train_qmodel(
         # stock_ammount_in_bool=True,
         # reward_fun: reward_fun_template,
         allow_multibuy=False,
+        use_random_segment=True,
 
         # FILE SAVERS
         qvals_file: TextIOWrapper = None,
@@ -210,10 +211,11 @@ def train_qmodel(
         rew_file: TextIOWrapper = None,
 ):
     RUN_LOGGER.debug(
-            f"Train params: {naming_ob}: trainN:{fulltrain_ntimes}, agents: {agents_n}. Reward F:{reward_f_num}")
-    N_SAMPLES = len(datalist_2dsequences_ordered_train)
+            f"Train params: {naming_ob}: trainN:{games_n}, agents: {agents_n}. Reward F:{reward_f_num}")
     WALK_INTERVAL_DEBUG = 250
-    RUN_LOGGER.debug(f"Input samples: {datalist_2dsequences_ordered_train.shape}")
+    RUN_LOGGER.debug(f"Input samples: {sum(map(len, segmentslist_alldata3d))}")
+
+    # N_SAMPLES = len(datalist_2dsequences_ordered_train)
 
     "GET MODEL PATH"
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
@@ -221,7 +223,7 @@ def train_qmodel(
         RUN_LOGGER.info(f"Loading model: {path_this_model_folder}")
         model_keras.load_weights(path_this_model_folder + "weights.keras")
     else:
-        RUN_LOGGER.info("Not loading model.")
+        RUN_LOGGER.warning(f"Not loading model - {naming_ob.path}.")
 
     if model_memory is None:
         model_memory = ModelMemory(maxlen=int(old_memory_size))
@@ -235,9 +237,9 @@ def train_qmodel(
     else:
         resolve_actions_func = resolve_actions_singlebuy
 
-    if N_SAMPLES <= 0:
-        raise ValueError(
-                f"Too few samples! {N_SAMPLES}, shape:{datalist_2dsequences_ordered_train.shape}")
+    # if N_SAMPLES <= 0:
+    #     raise ValueError(
+    #             f"Too few samples! {N_SAMPLES}, shape:{datalist_2dsequences_ordered_train.shape}")
 
     reward_fun = RewardStore.get(reward_f_num)
 
@@ -247,34 +249,46 @@ def train_qmodel(
 
     LOOP_TIMES = deque(maxlen=100)
 
-    for i_train_sess in range(fulltrain_ntimes):
-        last_start = N_SAMPLES - session_size
+    for i_train_sess in range(games_n):
+        if use_random_segment:
+            segm_i = np.random.randint(0, len(segmentslist_alldata3d))
+            session_sequences3d = segmentslist_alldata3d[segm_i]
+        else:
+            segm_i = 0
+            session_sequences3d = segmentslist_alldata3d[segm_i]
+
+        n_samples, time_wind, time_ftrs = session_sequences3d.shape
+
+        last_start = n_samples - game_duration
         # print(f"Last start: {last_start} for: {N_SAMPLES} of size: {session_size}")
-        ses_start = np.random.randint(0, last_start)
-        ses_end = ses_start + session_size
+        if last_start < 0:
+            ses_start = 0
+        else:
+            ses_start = np.random.randint(0, last_start)
+
+        ses_end = ses_start + game_duration
+        if ses_end > n_samples:
+            ses_end = n_samples
 
         starttime = time.time()
-        "Clone model if step training"
-        # stable_model = model_keras.copy()
-
-        # eps_cycle = EPS_CYCLE + np.random.randint(0, 100)
-        # eps_offset = np.random.randint(0, 50)
         fresh_memory = AgentsMemory()
 
         if override_eps is not None:
             session_eps = override_eps
         else:
-            session_eps = get_eps(i_train_sess, fulltrain_ntimes, max_explore=max_eps)
+            session_eps = get_eps(i_train_sess, games_n, max_explore=max_eps)
 
         RUN_LOGGER.info(
-                f"Staring session: {i_train_sess + 1} of {fulltrain_ntimes} (Eps: {session_eps:>2.3f}) : {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {session_size}.")
+                f"Staring session: {i_train_sess + 1} of {games_n} (Eps: {session_eps:>2.3f})@ segm:{segm_i}: {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {game_duration}.")
+        print(f"Data shape: {session_sequences3d.shape}")
 
         "Start with different money values"
         # "CASH | CARGO | LAST SELL | LAST BUY | LAST TRANSACTION PRICE"
 
         if allow_train:
             # agents_stocks, current_cash_arr, starting_money_arr = initialize_agents(START, agents_n)
-            if True:
+            start_empty_cargo = True
+            if start_empty_cargo:
                 "Start with just cash"
                 agents_discrete_states, hidden_states = initialize_agents(agents_n)
             else:
@@ -292,11 +306,12 @@ def train_qmodel(
         "0, 1, 2"
         "Sell, Pass, Buy"
         t0_walking = time.time()
+        session_size = ses_end - ses_start
         for i_sample in range(ses_start, ses_end - 1):  # Never in done state
-            done_session = i_sample == (N_SAMPLES - 1)  # is this last sample?
+            done_session = i_sample == (n_samples - 1)  # is this last sample?
 
-            timesegment_2d = datalist_2dsequences_ordered_train[i_sample, :]
-            timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (agents_n, 1, 1))
+            env_arr2d = session_sequences3d[i_sample, :, :]
+            env_arr3d = np.tile(env_arr2d[np.newaxis, :, :], (agents_n, 1, 1))
 
             if not i_sample % WALK_INTERVAL_DEBUG:
                 RUN_LOGGER.debug(f"Walking sample: {i_sample}, memory: {len(fresh_memory.memory)}")
@@ -313,7 +328,7 @@ def train_qmodel(
             # print(q_vals.shape)
 
             q_vals = model_keras.predict(
-                    [timesegment_stacked, agents_discrete_states],
+                    [env_arr3d, agents_discrete_states],
                     verbose=False
             )
             "Select Action"
@@ -337,18 +352,18 @@ def train_qmodel(
             rewards = []
             valids = []
 
-            env_state_arr = timesegment_2d
+            # env_state_arr = timesegment_2d
             # price_ind
             # price_ind
 
-            cur_step_price = env_state_arr[-1, price_col_ind]
+            cur_step_price = env_arr2d[-1, price_col_ind]
             for agent_i, (state_arr, act, hidden_arr) in enumerate(
                     zip(agents_discrete_states, actions, hidden_states)
             ):
                 # hidden_arr[1] = cur_step_price
 
                 rew, valid = reward_fun(
-                        env_state_arr, state_arr, act, hidden_arr, done_session, cur_step_price,
+                        env_arr2d, state_arr, act, hidden_arr, done_session, cur_step_price,
                         price_col_ind
                 )
                 arr = [i_train_sess, session_eps, i_sample, agent_i, rew]
@@ -382,7 +397,7 @@ def train_qmodel(
 
         tend_walking = time.time()
         RUN_LOGGER.info(
-                f"Walking through data took: {tend_walking - t0_walking:>5.4f}s. {(tend_walking - t0_walking) / N_SAMPLES:>5.5f}s per step")
+                f"Walking through data took: {tend_walking - t0_walking:>5.4f}s. {(tend_walking - t0_walking) / session_size:>5.5f}s per step")
 
         gain = hidden_states[:, 0] - hidden_states[:, 1]
         # RUN_LOGGER.debug(f"End gains: {gain}")
@@ -404,7 +419,7 @@ def train_qmodel(
             fresh_loss = deep_q_reinforce_fresh(
                     model_keras, fresh_memory.memory,
                     discount=discount,
-                    env_data_2d=datalist_2dsequences_ordered_train,
+                    env_alldata3d=session_sequences3d,
                     mini_batchsize=int(naming_ob.batch),
             )
             # L(history.history['loss'])
@@ -418,26 +433,26 @@ def train_qmodel(
             else:
                 "Migrate fraction memory"
                 k = int(remember_fresh_fraction * len(fresh_memory))
-                model_memory.migrate(sample(fresh_memory.memory, k))
+                # model_memory.migrate(sample(fresh_memory.memory, k))
 
-            "Train from old"
-            k = int(train_from_oldmem_fraction * len(model_memory))
-            train_number = max(0, int(extra_training_from_oldmemory))
-            if k > 3000:
-                # print(f"Retraining for: {train_number + 1}")
-                for tri_i in range(train_number + 1):
-                    "Pick random samples"
-                    old_samples = sample(model_memory.memory, k)
-                    old_loss = deep_q_reinforce_oldmem(
-                            model_keras, old_samples,
-                            discount=discount,
-                            env_data_2d=datalist_2dsequences_ordered_train,
-                            mini_batchsize=int(naming_ob.batch),
-                    )
-                    loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
-            else:
-                for tri_i in range(train_number + 1):
-                    loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
+            # "Train from old"
+            # k = int(train_from_oldmem_fraction * len(model_memory))
+            # train_number = max(0, int(extra_training_from_oldmemory))
+            # if k > 3000:
+            #     # print(f"Retraining for: {train_number + 1}")
+            #     for tri_i in range(train_number + 1):
+            #         "Pick random samples"
+            #         old_samples = sample(model_memory.memory, k)
+            #         old_loss = deep_q_reinforce_oldmem(
+            #                 model_keras, old_samples,
+            #                 discount=discount,
+            #                 env_alldata3d=session_sequences3d,
+            #                 mini_batchsize=int(naming_ob.batch),
+            #         )
+            #         loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
+            # else:
+            #     for tri_i in range(train_number + 1):
+            #         loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
 
         "RESOLVE END SCORE"
 
@@ -503,7 +518,7 @@ def save_csv_locked(df, path):
 def deep_q_reinforce_fresh(
         mod, fresh_samples,
         discount=0.9,
-        env_data_2d=None,
+        env_alldata3d=None,
         mini_batchsize=500,
 ):
     RUN_LOGGER.debug(
@@ -562,10 +577,10 @@ def deep_q_reinforce_fresh(
         "Future Q"
         # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
         # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
-        envs_states_arr_fut = env_data_2d[envs_inds_fut]
-        envs_states_arr = env_data_2d[envs_inds]
+        envs_states_arr_fut = env_alldata3d[envs_inds_fut]
+        envs_states_arr = env_alldata3d[envs_inds]
 
-        max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
+        max_future_argq = mod.predict([envs_states_arr_fut, states_fut], verbose=False).max(axis=1)
 
         new_qvals = sub_deepq_func(actions, discount, dones, fresh_qvals, max_future_argq, rewards)
 
@@ -604,7 +619,7 @@ def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, reward
 def deep_q_reinforce_oldmem(
         mod, old_samples,
         discount=0.9,
-        env_data_2d=None,
+        env_alldata3d=None,
         mini_batchsize=500,
 ):
     # batch_gen = get_big_batch(
@@ -664,13 +679,13 @@ def deep_q_reinforce_oldmem(
 
 
         "Get arrays from indexes"
-        envs_states_arr_fut = env_data_2d[envs_inds_fut]
-        envs_states_arr = env_data_2d[envs_inds]
+        envs_states_arr_fut = env_alldata3d[envs_inds_fut]
+        envs_states_arr = env_alldata3d[envs_inds]
 
         "Old States"
         # _wal, _st = np.array(old_states, dtype=object).T
         # _wal, _st = np.vstack(_wal), np.stack(_st)
-        current_qvals = mod.predict([envs_states_arr, states])
+        current_qvals = mod.predict([envs_states_arr, states], verbose=False)
 
         # q_vals_to_train = mod.predict([_wal, _st])
 
@@ -678,7 +693,7 @@ def deep_q_reinforce_oldmem(
         # _ft_wal, _ft_sing = np.array(future_states, dtype=object).T
         # _ft_wal, _ft_sing = np.vstack(_ft_wal), np.stack(_ft_sing)
 
-        max_future_argq = mod.predict([envs_states_arr_fut, states_fut]).max(axis=1)
+        max_future_argq = mod.predict([envs_states_arr_fut, states_fut], verbose=False).max(axis=1)
         new_qvals = sub_deepq_func(actions, discount, dones, current_qvals, max_future_argq, rewards)
 
         "Reinforce"
@@ -728,7 +743,7 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
 
 def single_model_training_function(
         counter, model_params, train_sequences, price_ind,
-        train_duration, game_duration,
+        games_n, game_duration,
         main_logger: logger
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
@@ -747,19 +762,19 @@ def single_model_training_function(
             tf.config.experimental.set_memory_growth(gpu, True)
 
         (arch_num, time_feats, time_window, float_feats, out_size,
-         nodes, lr, batch, loss, discount
+         nodes, lr, batch, loss, discount, iteration
          ) = model_params
+
         model = model_builder(
-                arch_num,
-                time_feats, time_window, float_feats, out_size,
-                loss, nodes, lr
+                arch_num, time_feats, time_window, float_feats, out_size,
+                loss, nodes, lr, iteration=iteration,
         )
         reward_fnum = 6
 
         RUN_LOGGER.info(
                 f"Starting {counter}: Arch Num:{arch_num} Version:? Loss:{loss} Nodes:{nodes} Batch:{batch} Lr:{lr}")
         naming_ob = NamingClass(
-                arch_num, ITERATION,
+                arch_num, iteration=iteration,
                 time_feats=time_feats, time_window=time_window, float_feats=float_feats,
                 outsize=out_size,
                 node_size=nodes, reward_fnum=reward_fnum,
@@ -782,8 +797,8 @@ def single_model_training_function(
                 model, train_sequences,
                 price_col_ind=price_ind,
                 naming_ob=naming_ob,
-                session_size=game_duration,
-                fulltrain_ntimes=train_duration,
+                game_duration=game_duration,
+                games_n=games_n,
                 reward_f_num=reward_fnum,
                 discount=discount,
         )
@@ -793,7 +808,15 @@ def single_model_training_function(
         RUN_LOGGER.error(exc, exc_info=True)
 
     "Clear memory?"
+
+    "Clear memory?"
     del model
+    tf.keras.backend.clear_session()
+    del train_sequences
+    print("Cleared memory... ?")
+
+    collected = gc.collect()
+    print(f"Collected: {collected}")
     tf.keras.backend.clear_session()
 
 
@@ -802,64 +825,70 @@ if __name__ == "__main__":
     # DEBUG_LOGGER = logger.debug_logger
     MainLogger.info("=== NEW TRAINING ===")
 
-    time_wind = 10
+    time_wind = 100
     float_feats = 1
     out_sze = 3
 
-    # "LOAD Interpolated data"
-    # columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
-    # print(
-    #         "Loading file with columns: ", columns,
-    # )
-    # price_ind = np.argwhere(columns == "last").ravel()[0]
-    # print(f"Price `last` at col: {price_ind}")
-    # train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
     file_path = os.path.join(path_data_folder, "obv_600.txt")
+    # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
     interval_s = 10
 
-    sequences, columns = preprocess_pipe(file_path, include_time=False, interval_s=interval_s)
-    train_data = sequences[0]
-    column = columns[0]
+    include_time = False
+    segments, columns = preprocess_pipe(
+            file_path, include_time=include_time, interval_s=interval_s,
+            add_timediff_feature=True,
+    )
+
+    # train_data = sequences[0]
+    # column = columns[0]
 
     # time_col = column.index('timestamp_s')
-    price_ind = column.index('last')  # offset to dropped time column
-    # print(f"time col: {time_col}")
+    price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
 
-    del sequences
-    del columns
+    # if include_time:
+    #     train_data = train_data[:, 1:]
 
-    timestamps_s = train_data[:, 0] + (time_wind - 1) * interval_s  # Window=1 : offset=0
-    train_data = train_data[:, 1:]
-    train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
+    train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
+    # train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
 
-    samples_n, _, time_ftrs = train_sequences.shape
-    print(f"Train sequences shape: {train_sequences.shape}")
+    samples_n, _, time_ftrs = train_segments[0].shape
+    if include_time:
+        time_ftrs -= 1
 
+    print(f"Segments: {len(train_segments)}, time ftrs: {time_ftrs}")
+    print(f"Columns: {columns[0]}")
+    print(f"All samples 2d: {sum(map(len, train_segments))}")
+
+    sys.exit()
+
+    # sys.exit()
     "Model Grid"
-    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    # gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    gen2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
 
-    with ProcessPoolExecutor(max_workers=6) as executor:
+    with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
             MainLogger.info(f"Adding process with: {data}")
-            train_duration = 500
-            game_duration = 250
-            # if counter < 3:
-            #     pass
+            games_n = 100
+            game_duration = 300
+            # if counter >= 1:
+            #     break
             # elif counter <= 11:
             #     train_duration = 280
             # else:
             #     continue
 
             proc = executor.submit(
-                    single_model_training_function, *data, train_sequences, price_ind,
-                    train_duration, game_duration,
+                    single_model_training_function, *data, train_segments, price_ind,
+                    games_n, game_duration,
                     MainLogger
             )
             process_list.append(proc)
+            print(f"Added process: {counter}")
 
             # while True
         # proc.e

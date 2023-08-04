@@ -357,28 +357,35 @@ def preprocess_pipe(
         add_timediff_feature=False,
 ):
     dataframe = pd.read_csv(input_data_path)
-    # print(dataframe.loc[:10, ["Date", " Time"]])
 
     "CLEAN"
     dataframe = preprocess(dataframe)
-    # print("pipe: columns")
-    # print(dataframe.columns)
-    # print(dataframe.loc[1:10, ['timestamp_ns']])
-    # print(dataframe.loc[1:10, ['timestamp_ns']])
-
-    if add_timediff_feature:
-        diff_m = np.diff(dataframe['timestamp_ns'] / 1e9 / 60)
-        diff_m = np.abs(diff_m)
-        dataframe['timediff_m'] = np.concatenate([[0], diff_m])
-        # print(diff_m[1:20])
 
     "NORMALIZE"
-    # print(folder_danych_clean)
-    # path = os.path.join(folder_danych_clean, "test.csv")
     segments, columns = generate_interpolated_data(
-            dataframe=dataframe, include_time=include_time,
+            dataframe=dataframe, include_time=True,
             interval_s=interval_s, split_interval_s=split_interval_s
     )
+
+    "MORE FEATURES"
+    if add_timediff_feature:
+        tmps_ind = np.argwhere(columns[0] == "timestamp_s").ravel()[0]
+        for i, (segm, col) in enumerate(zip(segments, columns)):
+            tmps = segm[:, tmps_ind]
+            diff_m = np.abs(np.diff(tmps) / 60)
+            diff_m = np.concatenate([[0], diff_m]).reshape(-1, 1)
+            segm = np.concatenate([segm, diff_m], axis=1)
+            segments[i] = segm
+            col = np.concatenate([col, ['timediff_m']])
+            columns[i] = col
+
+    if not include_time:
+        tmps_ind = np.argwhere(columns[0] == "timestamp_s").ravel()[0]
+        segments = [np.delete(segm, tmps_ind, axis=0) for segm in segments]
+        # print(f"Columns pre: {columns[0]}")
+        columns = [np.delete(col, tmps_ind, axis=0) for col in columns]
+        # print(f"Columns post: {columns[0]}")
+
     return segments, columns
 
 
