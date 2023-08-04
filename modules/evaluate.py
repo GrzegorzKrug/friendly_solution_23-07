@@ -335,17 +335,18 @@ def single_model_evaluate(
             tf.config.experimental.set_memory_growth(gpu, True)
 
         (arch_num, time_feats, time_window, float_feats, out_size,
-         nodes, lr, batch, loss, discount
+         nodes, lr, batch, loss, discount, iteration,
          ) = model_params
         model = model_builder(
                 arch_num,
                 time_feats, time_window, float_feats, out_size,
-                loss, nodes, lr
+                loss, nodes, lr,
+                iteration=iteration,
         )
         reward_fnum = 6
 
         naming_ob = NamingClass(
-                arch_num, ITERATION,
+                arch_num, iteration=iteration,
                 time_feats=time_feats, time_window=time_window, float_feats=float_feats,
                 outsize=out_size,
                 node_size=nodes, reward_fnum=reward_fnum,

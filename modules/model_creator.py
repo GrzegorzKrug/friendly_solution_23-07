@@ -418,9 +418,27 @@ def grid_models_generator(time_feats, time_window, float_feats, out_size):
                             #                 for loss in ['huber', 'mae', 'mse']:
                             #                     for lr in [1e-5, 1e-6, 1e-7]:
                             print(f"Yielding model, counter: {counter}")
+                            iteration = 0
                             yield counter, (
                                     arch_num, time_feats, time_window, float_feats, out_size,
-                                    nodes, lr, batch, loss, dc
+                                    nodes, lr, batch, loss, dc, iteration
+                            )
+                            counter += 1
+
+
+def grid_models_generator_it2(time_feats, time_window, float_feats, out_size):
+    counter = 0
+    for batch in [500]:
+        for arch_num in [1, 3, 101, 103]:
+            for dc in [0.9]:
+                for nodes in [1000]:
+                    for loss in ['huber', 'mae', ]:
+                        for lr in [1e-5, 1e-6]:
+                            print(f"Yielding model, counter: {counter}")
+                            iteration = 2
+                            yield counter, (
+                                    arch_num, time_feats, time_window, float_feats, out_size,
+                                    nodes, lr, batch, loss, dc, iteration
                             )
                             counter += 1
 
