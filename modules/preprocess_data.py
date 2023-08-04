@@ -351,11 +351,26 @@ def generate_interpolated_data(
 
 
 @measure_real_time_decorator
-def preprocess_pipe(input_data_path, interval_s=10, include_time=False, split_interval_s=1800):
+def preprocess_pipe(
+        input_data_path, interval_s=10,
+        include_time=False, split_interval_s=1800,
+        add_timediff_feature=False,
+):
     dataframe = pd.read_csv(input_data_path)
+    # print(dataframe.loc[:10, ["Date", " Time"]])
 
     "CLEAN"
     dataframe = preprocess(dataframe)
+    # print("pipe: columns")
+    # print(dataframe.columns)
+    # print(dataframe.loc[1:10, ['timestamp_ns']])
+    # print(dataframe.loc[1:10, ['timestamp_ns']])
+
+    if add_timediff_feature:
+        diff_m = np.diff(dataframe['timestamp_ns'] / 1e9 / 60)
+        diff_m = np.abs(diff_m)
+        dataframe['timediff_m'] = np.concatenate([[0], diff_m])
+        # print(diff_m[1:20])
 
     "NORMALIZE"
     # print(folder_danych_clean)
