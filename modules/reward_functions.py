@@ -365,6 +365,7 @@ def reward_fun_6(
     # print(f"Price now:", price_now)
     "Pos = Rising, Negative = Decreasing"
     "Current price - Last price"
+    action_cost = 0.01
     price_change = (env_arr_2d[-1, price_col_ind] - env_arr_2d[- 2, price_col_ind])
     price_change *= 10000  # 10k : reward~  +=0.056
     # price_change *= 15000  # 15k : reward~  +=0.085
@@ -394,7 +395,7 @@ def reward_fun_6(
         if action == 0:
             "BUY"
             if discrete_stock == 0:
-                return -price, True
+                return -price-action_cost, True
             else:
                 return INVALID_MOVE, False
 
@@ -412,7 +413,7 @@ def reward_fun_6(
             if discrete_stock <= 0:
                 return INVALID_MOVE, False
 
-            return price, True
+            return price-action_cost, True
         else:
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 
