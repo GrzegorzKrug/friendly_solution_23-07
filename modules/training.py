@@ -838,6 +838,7 @@ if __name__ == "__main__":
             file_path, include_time=include_time, interval_s=interval_s,
             add_timediff_feature=True,
     )
+    print(f"Pipe output, segments:{segments[0].shape}, columns:{columns[0].shape}")
 
     # train_data = sequences[0]
     # column = columns[0]
@@ -858,7 +859,8 @@ if __name__ == "__main__":
     print(f"Segments: {len(train_segments)}, time ftrs: {time_ftrs}")
     print(f"Columns: {columns[0]}")
     print(f"All samples 2d: {sum(map(len, train_segments))}")
-
+    assert time_ftrs == len(columns[
+                                0]), f"Columns must mast time_features but go: ftr:{time_ftrs} and cols: {len(columns[0])}"
 
     # sys.exit()
     "Model Grid"

@@ -380,8 +380,11 @@ def preprocess_pipe(
             columns[i] = col
 
     if not include_time:
+        # print("Pipe: Removing timestamp from all segments.")
         tmps_ind = np.argwhere(columns[0] == "timestamp_s").ravel()[0]
-        segments = [np.delete(segm, tmps_ind, axis=0) for segm in segments]
+        # print("Segments pre:", segments[0].shape)
+        segments = [np.delete(segm, tmps_ind, axis=1) for segm in segments]
+        # print("Segments post:", segments[0].shape)
         # print(f"Columns pre: {columns[0]}")
         columns = [np.delete(col, tmps_ind, axis=0) for col in columns]
         # print(f"Columns post: {columns[0]}")
