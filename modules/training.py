@@ -859,12 +859,11 @@ if __name__ == "__main__":
     print(f"Columns: {columns[0]}")
     print(f"All samples 2d: {sum(map(len, train_segments))}")
 
-    sys.exit()
 
     # sys.exit()
     "Model Grid"
-    # gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    gen2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    # gen2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
