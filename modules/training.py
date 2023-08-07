@@ -826,8 +826,6 @@ if __name__ == "__main__":
     # DEBUG_LOGGER = logger.debug_logger
     MainLogger.info("=== NEW TRAINING ===")
 
-    file_path = os.path.join(path_data_folder, "obv_600.txt")
-    # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
     # interval_s = 10
 
     include_time = False
@@ -852,9 +850,11 @@ if __name__ == "__main__":
     # time_ftrs = 0
     float_feats = 1
 
+    file_path = os.path.join(path_data_folder, "obv_600.txt")
+    # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
-            first_sample_date="2023-6-29"
+            # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
     price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
     samples_n, _, time_ftrs = trainsegments_ofsequences3d[0].shape
