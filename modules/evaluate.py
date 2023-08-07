@@ -481,7 +481,11 @@ if __name__ == "__main__":
             name, *_ = file_name.split(".")
 
             interval_s = 10
-            segments, columns = preprocess_pipe(file_path, include_time=True, interval_s=interval_s)
+            segments, columns = preprocess_pipe(
+                    file_path, include_time=True,
+                    interval_s=interval_s,
+                    add_timediff_feature=True
+            )
             # train_data = sequences[0]
             column = columns[0]
 
@@ -502,7 +506,7 @@ if __name__ == "__main__":
             evaluate_pipeline(
                     train_segments, price_col,
                     time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=10,
+                    game_duration=100,
                     workers=5,
                     games_n=130,
                     name=f"{name}",
