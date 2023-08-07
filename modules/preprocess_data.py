@@ -292,7 +292,7 @@ def interpolate_segments(segments_list, int_interval_s=1, include_time=False):
         if include_time:
             columns = ['timestamp_s']
             out_array = np.array(tm_uniform).reshape(-1, 1)
-            print("Array from timestamp", out_array.dtype)
+            # print("Array from timestamp", out_array.dtype)
         else:
             out_array = None
             columns = []

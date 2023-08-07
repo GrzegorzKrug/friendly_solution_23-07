@@ -17,7 +17,7 @@ from reward_functions import RewardStore
 
 from functools import wraps
 from collections import deque
-from model_creator import grid_models_generator, model_builder
+from model_creator import grid_models_generator, model_builder, grid_models_generator_it2
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
@@ -132,16 +132,24 @@ def eval_func(
     if full_eval:
         game_n = len(segments_oftraindata)
         print(f"Full eval, games: {game_n}")
+        random_start = False
+
+    elif len(segments_oftraindata) <= game_n:
+        random_start = False
     else:
-        if game_n > len(segments_oftraindata):
-            game_n = len(segments_oftraindata)
-            print(f"Staring evaluation, games at max size: {game_n}")
-        else:
-            print(f"Staring evaluation, games: {game_n} (of {len(segments_oftraindata)} segments)")
+        random_start = True
+    # else:
+    # if game_n > len(segments_oftraindata):
+    #     game_n = len(segments_oftraindata)
+    #     print(f"Staring evaluation, games at max size: {game_n}")
+    # else:
+    #     print(f"Staring evaluation, games: {game_n} (of {len(segments_oftraindata)} segments)")
 
     for i_eval_sess in range(game_n):
-        "RANDOM SEGMENT"
-        ordered_list_of3dsequences = segments_oftraindata[i_eval_sess]
+        segm_i = np.linspace(0, len(segments_oftraindata) - 1, game_n).round().astype(int)[i_eval_sess]
+        # print(f"Games: {game_n} at: {np.linspace(0, len(segments_oftraindata) - 1, game_n).round()}")
+
+        ordered_list_of3dsequences = segments_oftraindata[segm_i]
 
         if timestamp_col is not None:
             time_sequences = ordered_list_of3dsequences[:, -1, timestamp_col]
@@ -163,10 +171,15 @@ def eval_func(
             print(f"Full eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
             ses_end = 5
         else:
-            if n_samples - 1 - session_size < 0:
-                ses_start = 0
+            if random_start:
+                if n_samples - 1 - session_size < 0:
+                    ses_start = 0
+                else:
+                    ses_start = np.random.randint(0, n_samples - 1 - session_size)
             else:
-                ses_start = np.random.randint(0, n_samples - 1 - session_size)
+                "Deterministic start"
+                ses_start = 0
+
             ses_end = ses_start + session_size
 
             if ses_end > n_samples:
@@ -401,6 +414,7 @@ def single_model_evaluate(
 def evaluate_pipeline(
         train_segments, price_col,
         time_wind, time_ftrs,
+        float_feats=16, out_size=3,
         workers=4, games_n=5,
         # uniform_games=True,
         game_duration=250, name="",
@@ -408,7 +422,8 @@ def evaluate_pipeline(
         timestamp_col=None,
         full_eval=False,
 ):
-    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
+    # gen1 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
@@ -458,60 +473,51 @@ def evaluate_pipeline(
 if __name__ == "__main__":
     use('ggplot')
 
-    time_wind = 100
+    interval_s = 10
+    time_wind = 50
     float_feats = 1
-    out_sze = 3
+    output_size = 3
 
-    if False:
-        "LOAD Interpolated data"
-        columns = np.load(path_data_clean_folder + "int_norm.columns.npy", allow_pickle=True)
-        print(
-                "Loading file with columns: ", columns,
+    files = ["obv_600.txt", "on_balance_volume.txt"]
+    # files = ["on_balance_volume.txt"]
+    for file_name in files:
+        file_path = path_data_folder + file_name
+        if not os.path.isfile(file_path):
+            print(f"Skipping file: {file_name}")
+            continue
+
+        name, *_ = file_name.split(".")
+
+        segments, columns = preprocess_pipe(
+                file_path, include_time=True,
+                interval_s=interval_s,
+                add_timediff_feature=True,
         )
-        print(f"Price `last` at col: {price_col}")
-        train_data, test_data = load_data_split(path_data_clean_folder + "int_norm.arr.npy")
-    else:
-        files = ["obv_600.txt", "on_balance_volume.txt"]
-        for file_name in files:
-            file_path = path_data_folder + file_name
-            if not os.path.isfile(file_path):
-                print(f"Skipping file: {file_name}")
-                continue
+        # train_data = sequences[0]
+        column = columns[0]
 
-            name, *_ = file_name.split(".")
+        time_col = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
+        price_col = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
+        print(f"Time col: {time_col}, Price col: {price_col}")
 
-            interval_s = 10
-            segments, columns = preprocess_pipe(
-                    file_path, include_time=True,
-                    interval_s=interval_s,
-                    add_timediff_feature=True
-            )
-            # train_data = sequences[0]
-            column = columns[0]
+        samples_n, time_ftrs = segments[0].shape
+        time_ftrs -= 1  # Reduce due to time column
 
-            time_col = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
-            price_col = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
-            print(f"Time col: {time_col}, Price col: {price_col}")
-            # print(f"time col: {time_col}")
+        train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
 
-            samples_n, time_ftrs = segments[0].shape
-            time_ftrs -= 1  # Reduce due to time column
+        print("single segment", train_segments[0].shape)
+        print(f"Time ftrs: {time_ftrs}, Time window: {time_wind}")
 
-            # price_col = np.argwhere(column == "last").ravel()[0]
-            # price_col = np.argwhere(column == "last").ravel()[0]
-            train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
-
-            print("single segment", train_segments[0].shape)
-
-            evaluate_pipeline(
-                    train_segments, price_col,
-                    time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=100,
-                    workers=5,
-                    games_n=130,
-                    name=f"{name}",
-                    # time_sequences=timestamps_s,
-                    timestamp_col=time_col,
-                    full_eval=False,
-            )
-            # break
+        evaluate_pipeline(
+                train_segments, price_col,
+                time_wind=time_wind, time_ftrs=time_ftrs,
+                float_feats=float_feats, out_size=output_size,
+                game_duration=800,
+                workers=2,
+                games_n=30,
+                name=f"{name}",
+                # time_sequences=timestamps_s,
+                timestamp_col=time_col,
+                full_eval=False,
+        )
+        break
