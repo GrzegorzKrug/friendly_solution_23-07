@@ -328,7 +328,6 @@ def single_model_evaluate(
 
     "GLOBAL LOGGERS"
     # DISCOUNT = 0  # .95
-
     try:
         gpus = tf.config.list_physical_devices('GPU')
         for gpu in gpus:
@@ -409,11 +408,7 @@ def evaluate_pipeline(
         timestamp_col=None,
         full_eval=False,
 ):
-    # n,time_wind,time_ftrs
     gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    # gen1 = dummy_grid_generator()
-    # for data in gen1:
-    #     single_model_training_function(*data)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
         for counter, data in enumerate(gen1):
@@ -463,7 +458,7 @@ def evaluate_pipeline(
 if __name__ == "__main__":
     use('ggplot')
 
-    time_wind = 10
+    time_wind = 100
     float_feats = 1
     out_sze = 3
 
@@ -507,7 +502,7 @@ if __name__ == "__main__":
             evaluate_pipeline(
                     train_segments, price_col,
                     time_wind=time_wind, time_ftrs=time_ftrs,
-                    game_duration=1000,
+                    game_duration=10,
                     workers=5,
                     games_n=130,
                     name=f"{name}",
