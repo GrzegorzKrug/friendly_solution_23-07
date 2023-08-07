@@ -12,16 +12,20 @@ from common_settings import ITERATION, path_data_clean_folder, path_models, path
 from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split
 from reward_functions import RewardStore
 
-from preprocess_data import preprocess_pipe
+from preprocess_data import preprocess_pipe_uniform, preprocess_pipe_bars
 from functools import wraps
 from collections import deque
-from model_creator import grid_models_generator, model_builder, grid_models_generator_it2
+from model_creator import (
+    grid_models_generator, grid_models_generator_2,
+    grid_models_generator_it2,
+    model_builder,
+)
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
 
 import traceback
-import multiprocessing
+import multiprocessing as mpc
 
 import tensorflow as tf
 
@@ -30,6 +34,7 @@ import concurrent
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import sys
 import os
+import pickle
 
 
 # session_dataframe.loc[
@@ -237,10 +242,6 @@ def train_qmodel(
     else:
         resolve_actions_func = resolve_actions_singlebuy
 
-    # if N_SAMPLES <= 0:
-    #     raise ValueError(
-    #             f"Too few samples! {N_SAMPLES}, shape:{datalist_2dsequences_ordered_train.shape}")
-
     reward_fun = RewardStore.get(reward_f_num)
 
     out_space = int(naming_ob.outsize)
@@ -322,10 +323,6 @@ def train_qmodel(
             #     future_segment3d = datalist_2dsequences_ordered_train[i_sample + 1, :][np.newaxis, :, :]
             #   # futuresegment_stacked = np.tile(future_segment3d, (agents_n, 1, 1))
 
-            "MOVE TO IF BELOW"
-            # print("Discrete shape", agents_discrete_states.shape)
-            # print(f"Predicted: {q_vals}")
-            # print(q_vals.shape)
 
             q_vals = model_keras.predict(
                     [env_arr3d, agents_discrete_states],
@@ -400,6 +397,9 @@ def train_qmodel(
                 f"Walking through data took: {tend_walking - t0_walking:>5.4f}s. {(tend_walking - t0_walking) / session_size:>5.5f}s per step")
 
         gain = hidden_states[:, 0] - hidden_states[:, 1]
+        last_price = env_arr2d[-1, price_col_ind]
+        gain += hidden_states[:, 2] * last_price
+        # gain *= 0
         # RUN_LOGGER.debug(f"End gains: {gain}")
 
         "Saving session data"
@@ -424,6 +424,7 @@ def train_qmodel(
             )
             # L(history.history['loss'])
             # loss_file.write(f"{i_train_sess},{fresh_loss}\n")
+            loss_file.write(f"{i_train_sess},{fresh_loss},{0}\n")
 
             if len(model_memory) <= (old_memory_size // 2):
                 "Migrate full"
@@ -825,58 +826,72 @@ if __name__ == "__main__":
     # DEBUG_LOGGER = logger.debug_logger
     MainLogger.info("=== NEW TRAINING ===")
 
-    time_wind = 100
-    float_feats = 1
-    out_sze = 3
-
     file_path = os.path.join(path_data_folder, "obv_600.txt")
     # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
-    interval_s = 10
+    # interval_s = 10
 
     include_time = False
-    segments, columns = preprocess_pipe(
-            file_path, include_time=include_time, interval_s=interval_s,
-            add_timediff_feature=True,
-    )
-    print(f"Pipe output, segments:{segments[0].shape}, columns:{columns[0].shape}")
+    # segments, columns = preprocess_pipe_uniform(
+    #         file_path, include_time=include_time, interval_s=interval_s,
+    #         add_timediff_feature=True,
+    # )
+    # print(f"Pipe output, segments:{segments[0].shape}, columns:{columns[0].shape}")
 
     # train_data = sequences[0]
     # column = columns[0]
 
     # time_col = column.index('timestamp_s')
-    price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
 
-    # if include_time:
-    #     train_data = train_data[:, 1:]
-
-    train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
+    # trainsegments_ofsequences3d = [to_sequences_forward(segment, time_wind, [1])[0] for segment in
+    #                                segments]
     # train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
 
-    samples_n, _, time_ftrs = train_segments[0].shape
+
+    time_size = 20
+    out_sze = 3
+    # time_ftrs = 0
+    float_feats = 1
+
+    trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
+            file_path, get_n_bars=time_size,
+            first_sample_date="2023-6-29"
+    )
+    price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
+    samples_n, _, time_ftrs = trainsegments_ofsequences3d[0].shape
+
+    print(
+            f"Segments: {len(trainsegments_ofsequences3d)}, {trainsegments_ofsequences3d[0].shape}, time ftrs: {time_ftrs}")
+    print(f"Columns: {columns[0]}")
+    print(f"All samples 2d: {sum(map(len, trainsegments_ofsequences3d))}")
+    assert time_ftrs == len(columns[0]), \
+        f"Columns must mast time_features but go: ftr:{float_feats} and cols: {len(columns[0])}"
+
     if include_time:
         time_ftrs -= 1
 
-    print(f"Segments: {len(train_segments)}, time ftrs: {time_ftrs}")
-    print(f"Columns: {columns[0]}")
-    print(f"All samples 2d: {sum(map(len, train_segments))}")
-    assert time_ftrs == len(columns[
-                                0]), f"Columns must mast time_features but go: ftr:{time_ftrs} and cols: {len(columns[0])}"
+    # float_feats += 1  # add State
 
     # sys.exit()
     "Model Grid"
-    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
-    # gen2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    # gen1 = grid_models_generator(time_ftrs, time_size, float_feats=float_feats, out_size=out_sze)
+    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=out_sze)
+    # gen3 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
+    # manager = mpc.Manager()
+    # # manager.list()
+    # manager.list(trainsegments_ofsequences3d)
+    # print(manager)
+    # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
 
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=2) as executor:
         process_list = []
-        for counter, data in enumerate(gen1):
+        for counter, data in enumerate(gen2):
             MainLogger.info(f"Adding process with: {data}")
-            games_n = 100
+            games_n = 50
             game_duration = 300
-            # if counter >= 1:
+            # if counter >= 2:
             #     break
             # elif counter <= 11:
             #     train_duration = 280
@@ -884,7 +899,7 @@ if __name__ == "__main__":
             #     continue
 
             proc = executor.submit(
-                    single_model_training_function, *data, train_segments, price_ind,
+                    single_model_training_function, *data, trainsegments_ofsequences3d, price_ind,
                     games_n, game_duration,
                     MainLogger
             )
@@ -910,8 +925,12 @@ if __name__ == "__main__":
             for val in to_del:
                 MainLogger.info(f"Removing finished process: {val}")
                 process_list.remove(val)
+                print(val.exception())
+                # print(dir(val))
 
             if len(process_list) <= 0:
                 break
 
             time.sleep(2)
+
+    print("Script end....")

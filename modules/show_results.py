@@ -24,6 +24,7 @@ use('ggplot')
 # print(folders)
 
 def make_plot(folder, dt_str, naming: NamingClass = None):
+    ROWS = 4
     loss_df = pd.read_csv(os.path.join(folder, f"{dt_str}-loss.csv"))
     rew_df = pd.read_csv(os.path.join(folder, f"{dt_str}-rewards.csv"))
     qval_df = pd.read_csv(os.path.join(folder, f"{dt_str}-qvals.csv"))
@@ -34,9 +35,8 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     x_loss = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(loss_df))
     # sample_min
 
-    plt.subplots(3, 1, figsize=(25, 12), dpi=300, height_ratios=[5, 2, 3], sharex=True)
-    plt.subplot(3, 1, 1)
-    plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
+    plt.subplots(ROWS, 1, figsize=(25, 12), dpi=300, height_ratios=[2, 3, 2, 4], sharex=True)
+    plt.subplot(ROWS, 1, 1)
     plt.plot(x_sess, sess_df['sess_eps'], label='Exploration', color='black', alpha=0.7)
 
     if "fresh_loss" in loss_df:
@@ -52,11 +52,11 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
 
     plt.legend(loc='upper left', markerscale=4)
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(ROWS, 1, 2)
     plt.scatter(x_reward, rew_df['reward'], label='Rewards', alpha=0.2, s=5, color='blue')
     plt.legend(loc='upper left', markerscale=4)
 
-    plt.subplot(3, 1, 3)
+    plt.subplot(ROWS, 1, 3)
     q_arr = qval_df.loc[:, ['q1', 'q2', 'q3']].to_numpy()
 
     # temp_x = qval_df['i_sample'].to_numpy().astype(float)
@@ -67,6 +67,10 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     for qi, q in enumerate(q_arr.T):
         plt.scatter(x_qvl, q, label=f"Q{qi + 1}", s=5, alpha=0.6)
     plt.legend(loc='upper left', markerscale=4)
+
+    plt.subplot(ROWS, 1, 4)
+    plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
+    plt.legend()
 
     if naming:
         plt.suptitle(f"Model: {naming.path}")
