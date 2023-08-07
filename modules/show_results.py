@@ -7,6 +7,7 @@ from common_settings import path_models
 
 import traceback
 import glob
+import datetime
 import os
 
 
@@ -82,7 +83,7 @@ def plot_thread(args):
     cur_model_path, dt_str, naming = args
     try:
         make_plot(os.path.join(cur_model_path, "data"), dt_str, naming)
-        print(f"Plotted: {dt_str}")
+        print(f"Plotted: {naming.path} - {dt_str}")
     except Exception as exc:
         print(f"Can not plot: {cur_model_path}- {dt_str}\n error: ({exc})")
         text = '\n'.join(traceback.format_tb(exc.__traceback__, limit=None))
@@ -91,6 +92,9 @@ def plot_thread(args):
 
 if __name__ == "__main__":
     args = []
+    plot_date_cutoff = datetime.datetime.now() - datetime.timedelta(days=2)
+    print(f"date: {plot_date_cutoff}")
+
     for cur_model_path in folders:
         # name = os.path.basename(cur_model_path)
         # print(f"name: {name}")
@@ -111,10 +115,16 @@ if __name__ == "__main__":
             dt_str = f"{dt}-{tm}"
             dates.add(dt_str)
 
-        print(f"Adding args: {naming.path}")
+        # print(f"Adding args: {naming.path}")
         for dt_str in dates:
             # plot_thread()
-            args.append((cur_model_path, dt_str, naming))
+            # print(dt_str)
+            dt_ob = datetime.datetime.strptime(dt_str, "%Y.%m.%d-%H.%M")
+            if plot_date_cutoff <= dt_ob:
+                print(f"Adding: {cur_model_path} - {dt_str}")
+                # print(dt_str<first_plot)
+                # print(f"Adding: {cur_model_path}")
+                args.append((cur_model_path, dt_str, naming))
 
     pool = mpc.Pool(6)
     pool.map(plot_thread, args)
