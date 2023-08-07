@@ -63,15 +63,27 @@ def timestr_to_seconds(x: str):
 
 
 def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = None):
-    """"""
+    """
+
+    Args:
+        df:
+        allow_plot:
+        save_path:
+        first_sample_date: 'YYYY-MM-DD'
+            Do not 0 pad!
+            "2023-6-15"
+
+    Returns:
+
+    """
     df = df.copy()
     # print("Processing data")
 
     if first_sample_date:
         first_sample_date = str(first_sample_date)
         mask = df['Date'] >= first_sample_date
-        # first_ind = np.argmax(mask)
-        # print(f"Cutting data to day: {first_ind}: {first_sample_date}")
+        first_ind = np.argmax(mask)
+        print(f"Cutting data to day: {first_ind}: {first_sample_date}")
         df = df.loc[mask, :]
         if len(df) <= 0:
             return df
@@ -351,7 +363,7 @@ def generate_interpolated_data(
 
 
 @measure_real_time_decorator
-def preprocess_pipe(
+def preprocess_pipe_uniform(
         input_data_path, interval_s=10,
         include_time=False, split_interval_s=1800,
         add_timediff_feature=False,
@@ -388,6 +400,148 @@ def preprocess_pipe(
         # print(f"Columns pre: {columns[0]}")
         columns = [np.delete(col, tmps_ind, axis=0) for col in columns]
         # print(f"Columns post: {columns[0]}")
+
+    return segments, columns
+
+
+def convert_bars_to_traindata(
+        list_ofdf,
+        bars_n=10,
+        add_time_diff=True,
+        use_val_diff=False,
+):
+    train_segments = []
+    train_columns = []
+    for segi, segment_df in enumerate(list_ofdf):
+        # print()
+        segment_df = segment_df.copy()
+        print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
+        # print(segment_df.columns)
+
+        timestamp_ind = np.argwhere(segment_df.columns == "timestamp_ns").ravel()[0]
+        segment_df.iloc[:, timestamp_ind] = segment_df.iloc[:, timestamp_ind] / 1e9
+        # print(f"timestamp_ind: {timestamp_ind}")
+
+        base_features = segment_df.shape[1]
+        # segm_columns = segment_df.columns.to_numpy()
+        segm_columns = np.array(segment_df.columns)
+        # print(f"Pre Segment: {segm_columns}")
+        segm_columns[timestamp_ind] = "timestamp_s"
+        # print(f"Post Segment: {segm_columns}")
+        # continue
+
+        if len(segment_df) < bars_n:
+            print(f"Skipping short segment: {segment_df.shape}")
+            continue
+        elif (use_val_diff or add_time_diff) & (len(segment_df) <= bars_n):
+            print(f"Skipping short segment +1: {segment_df.shape}")
+            continue
+
+        if use_val_diff or add_time_diff:
+            offset = 1
+            if add_time_diff:
+                base_features += 1
+                segm_columns = np.concatenate([segm_columns, ['timediff_s']])
+
+        else:
+            offset = 0
+
+        sequences_3d = np.empty((0, bars_n, base_features), dtype=float)
+
+        for sample in range(offset, len(segment_df) - bars_n + 1):
+            if use_val_diff:
+                step_df_2d = segment_df.iloc[sample - 1:sample + bars_n].to_numpy()
+                step_df_2d = np.diff(step_df_2d, axis=0)
+                # print(f"Step diff: {step_df_2d.shape}")
+                # print(step_df_2d)
+            else:
+                step_df_2d = segment_df.iloc[sample:sample + bars_n].to_numpy()
+
+            if add_time_diff:
+                timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
+                stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
+                # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
+                step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
+
+            # print(f"step: {step_df_2d.shape}")
+            # step_df_2d[np.newaxis, :]
+            sequences_3d = np.concatenate([sequences_3d, step_df_2d[np.newaxis, :]], axis=0)
+            # print(f"seq 3d: {sequences_3d.shape}")
+
+            # print(f"Scope: {sample}:{sample + bars_n} / {len(segment_df)}: size: {step_df_2d.shape}")
+            # print(step_df_2d.shape, )
+        # print(f"End seq 3d: {sequences_3d.shape}")
+        # print(f"End cols: {segm_columns}")
+        train_segments.append(sequences_3d)
+        train_columns.append(segm_columns)
+
+    all_samples = sum(map(len, train_segments))
+    print(f"All samples: {all_samples} in: {len(train_segments)} segments")
+    print(segm_columns, len(segm_columns))
+
+    return train_segments, train_columns
+
+
+@measure_real_time_decorator
+def preprocess_pipe_bars(
+        input_data_path,
+        get_n_bars=10,
+        use_bars_diff=False,
+        history_interval=10,
+        include_timestamp=False,
+        split_interval_s=1800,
+        add_timediff_feature=True,
+        first_sample_date=None,
+):
+    """
+
+    Args:
+        input_data_path:
+        get_n_bars:
+        use_bars_diff:
+        history_interval:
+        include_timestamp:
+        split_interval_s:
+        add_timediff_feature:
+        first_sample_date: 'YYYY-MM-DD'
+            Do not 0 pad!
+            "2023-6-15"
+    Returns:
+
+    """
+    dataframe = pd.read_csv(input_data_path)
+
+    "CLEAN"
+    dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
+
+    # dataframe = dataframe.iloc[200:500]
+
+    "NORMALIZE"
+    dataframe = normalize(dataframe)
+
+    "SEGMENTS"
+    # print(f"Input dataframe: {dataframe.shape}")
+    list_dfsegments = split_df_to_segments(
+            dataframe, split_s=split_interval_s,
+            minimum_samples_per_segment=get_n_bars,
+    )
+    segments, columns = convert_bars_to_traindata(
+            list_dfsegments,
+            bars_n=get_n_bars,
+            add_time_diff=add_timediff_feature,
+    )
+
+    "MORE FEATURES"
+
+    if not include_timestamp:
+        # print("Pipe: Removing timestamp from all segments.")
+        tmps_ind = np.argwhere(columns[0] == "timestamp_s").ravel()[0]
+        # print("Segments pre:", segments[0].shape)
+        segments = [np.delete(segm, tmps_ind, axis=2) for segm in segments]
+        # print("Segments post:", segments[0].shape)
+        # print(f"Columns pre: {columns[0].shape}, {columns[0]}")
+        columns = [np.delete(col, tmps_ind, axis=0) for col in columns]
+        # print(f"Columns post: {columns[0].shape}, {columns[0]}")
 
     return segments, columns
 
@@ -442,30 +596,59 @@ if __name__ == "__main__":
     np.set_printoptions(threshold=np.inf, formatter=dict(int='{:d}'.format))
 
     "CLEAN"
-    input_data_path = folder_danych + "obv_600.txt"
-    dataframe = pd.read_csv(input_data_path)
-    dataframe = preprocess(dataframe)
+    input_data_path = folder_danych + "on_balance_volume.txt"
+    # dataframe = pd.read_csv(input_data_path)
+    # dataframe = preprocess(dataframe, first_sample_date='2023-6-15')
+    # dataframe = dataframe.iloc[800:1000, :]
+    # print(dataframe.shape)
+    #
+    # x = (dataframe['timestamp_ns'] / 1e9).to_numpy()
+    # x -= x[0]
+    # y = dataframe['last']
+    #
+    # plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+    # plt.subplot(3, 1, 1)
+    # plt.plot(x, y)
+    #
+    # plt.subplot(3, 1, 2)
+    # diff = np.diff(y)
+    # plt.plot(x[1:], diff)
+    #
+    # plt.subplot(3, 1, 3)
+    # xdiff = np.diff(x)
+    # plt.plot(x[1:], diff / xdiff)
+    #
+    # plt.show()
+
 
     # for num in dataframe.loc[:5, 'timestamp_ns'].to_numpy() / 1e9:
     #     print(num)
 
     # segments1 = split_df_to_segments(dataframe, 1800)
     # print(len(segments1))
-    segments, columns = preprocess_pipe(input_data_path, split_interval_s=1800, include_time=True)
+    # segments, columns = preprocess_pipe_uniform(input_data_path, split_interval_s=1800,
+    #                                             include_time=True)
+    segments, columns = preprocess_pipe_bars(
+            input_data_path,
+            get_n_bars=80,
+            split_interval_s=1800,
+            include_timestamp=True,
+            first_sample_date="2023-6-27"
+    )
     # print(segments[])
-    first = segments[0]
-    first = first.astype(int)
+    # first = segments[0]
+    # first = first.astype(int)
     # print(first)
     # print(first[:5, 0])
 
-    from common_functions import to_sequences_forward
+    # from common_functions import to_sequences_forward
 
 
-    train_segments, _ = to_sequences_forward(segments[0], 10, [1])
-    train_segments = train_segments.astype(int)
+    # train_segments, _ = to_sequences_forward(segments[0], 10, [1])
+    # train_segments = train_segments.astype(int)
 
-    print("RES:")
-    print(train_segments[0].shape)
+    # print("RES:")
+    # print(train_segments[0].shape)
     # print(train_segments[:5, :5, 0])
 
     # print(len(segments))
