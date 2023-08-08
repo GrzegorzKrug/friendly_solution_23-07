@@ -70,6 +70,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
 
     plt.subplot(ROWS, 1, 4)
     plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
+    plt.plot(x_sess[[0, -1]], [0, 0], color='black')
     plt.legend()
 
     if naming:

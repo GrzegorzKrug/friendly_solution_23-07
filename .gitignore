@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.idea
 *.png
+*csv
+models*
+dane*
 
 # C extensions
 *.so
