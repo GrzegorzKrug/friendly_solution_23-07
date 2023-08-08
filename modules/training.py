@@ -17,7 +17,7 @@ from functools import wraps
 from collections import deque
 from model_creator import (
     grid_models_generator, grid_models_generator_2,
-    grid_models_generator_it2,
+    grid_models_generator_it23,
     model_builder,
 )
 
@@ -281,7 +281,7 @@ def train_qmodel(
 
         RUN_LOGGER.info(
                 f"Staring session: {i_train_sess + 1} of {games_n} (Eps: {session_eps:>2.3f})@ segm:{segm_i}: {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {game_duration}.")
-        print(f"Data shape: {session_sequences3d.shape}")
+        # print(f"Data shape: {session_sequences3d.shape}")
 
         "Start with different money values"
         # "CASH | CARGO | LAST SELL | LAST BUY | LAST TRANSACTION PRICE"
@@ -428,8 +428,8 @@ def train_qmodel(
 
             if len(model_memory) <= (old_memory_size // 2):
                 "Migrate full"
-                shuffle(fresh_memory.memory)
-                model_memory.migrate(fresh_memory.memory)
+                # shuffle(fresh_memory.memory)
+                # model_memory.migrate(fresh_memory.memory)
 
             else:
                 "Migrate fraction memory"
