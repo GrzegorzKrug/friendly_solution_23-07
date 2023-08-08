@@ -511,7 +511,8 @@ def preprocess_pipe_bars(
         split_interval_s=1800,
         add_timediff_feature=True,
         first_sample_date=None,
-        clip_dataframe=None
+        clip_dataframe=None,
+        workers=6,
 ):
     """
 
@@ -551,6 +552,7 @@ def preprocess_pipe_bars(
             list_dfsegments,
             bars_n=get_n_bars,
             add_time_diff=add_timediff_feature,
+            workers=workers,
     )
 
     "MORE FEATURES"

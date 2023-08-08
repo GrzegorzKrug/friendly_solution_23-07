@@ -854,6 +854,7 @@ if __name__ == "__main__":
     # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
+            workers=6,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
     price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
