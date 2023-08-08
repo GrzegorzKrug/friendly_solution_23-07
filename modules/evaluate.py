@@ -17,7 +17,10 @@ from reward_functions import RewardStore
 
 from functools import wraps
 from collections import deque
-from model_creator import grid_models_generator, model_builder, grid_models_generator_it2
+from model_creator import (
+    model_builder, grid_models_generator_it2,
+    grid_models_generator, grid_models_generator_2,
+)
 
 from io import TextIOWrapper
 from yasiu_native.time import measure_real_time_decorator
@@ -422,11 +425,12 @@ def evaluate_pipeline(
         timestamp_col=None,
         full_eval=False,
 ):
-    gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
-    # gen1 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
+    # gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
+    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=output_size)
+    # gen_it2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
-        for counter, data in enumerate(gen1):
+        for counter, data in enumerate(gen2):
             # if counter not in [1, 3]:
             #     continue
             # if counter != 7:
