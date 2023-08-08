@@ -885,12 +885,12 @@ if __name__ == "__main__":
     # print(manager)
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
 
-    with ProcessPoolExecutor(max_workers=2) as executor:
+    with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
         for counter, data in enumerate(gen2):
             MainLogger.info(f"Adding process with: {data}")
-            games_n = 50
-            game_duration = 300
+            games_n = 300
+            game_duration = 200
             # if counter >= 2:
             #     break
             # elif counter <= 11:
