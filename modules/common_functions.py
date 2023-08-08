@@ -248,7 +248,7 @@ def unpack_evals_to_table(res_list, add_summary=True):
     """
     table = prettytable.PrettyTable()
     if add_summary:
-        columns = ["Sum gain:", "Sum valids:"]
+        columns = ["Sum gain:", "Sum valids:", "Best gain:"]
     else:
         columns = []
 
@@ -284,12 +284,13 @@ def unpack_evals_to_table(res_list, add_summary=True):
                 total_valid_acts += val[1]
                 total_gain += val[2]
 
-            row = row + [val[0], val[1], np.round(val[2])]
+            row = row + [val[0], val[1], np.round(val[2], 5)]
 
         # print(row)
+        best_gain_tuple = max(runs, key=lambda x: x[2])
 
         if add_summary:
-            all_rows.append((name, np.round(total_gain, 4), total_valid_acts, *row))
+            all_rows.append((name, np.round(total_gain, 5), total_valid_acts, best_gain_tuple[2], *row))
         else:
             all_rows.append((name, *row))
     # print(table)
