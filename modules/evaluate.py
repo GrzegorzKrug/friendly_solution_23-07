@@ -18,8 +18,9 @@ from reward_functions import RewardStore
 from functools import wraps
 from collections import deque
 from model_creator import (
-    model_builder, grid_models_generator_it2,
+    model_builder,
     grid_models_generator, grid_models_generator_2,
+    grid_models_generator_it23,
 )
 
 from io import TextIOWrapper
@@ -141,6 +142,8 @@ def eval_func(
         random_start = False
     else:
         random_start = True
+
+    # random_start = True
     # else:
     # if game_n > len(segments_oftraindata):
     #     game_n = len(segments_oftraindata)
@@ -466,7 +469,7 @@ def evaluate_pipeline(
         tab = unpack_evals_to_table(results)
         # print(tab)
         now = datetime.datetime.now()
-        dt_str = f"{now.day}.{now.month}-{now.hour}.{now.minute}"
+        dt_str = f"{now.month}.{now.day}-{now.hour}.{now.minute}"
         with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
             fp.write(str(tab))
             fp.write("\n")
