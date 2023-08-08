@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 
+import multiprocessing as mpc
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -409,76 +410,95 @@ def convert_bars_to_traindata(
         bars_n=10,
         add_time_diff=True,
         use_val_diff=False,
+        workers=6,
 ):
     train_segments = []
     train_columns = []
+    args = []
     for segi, segment_df in enumerate(list_ofdf):
-        segment_df = segment_df.copy()
-        print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
-        # print(segment_df.columns)
+        args.append((segi, segment_df, bars_n, add_time_diff, use_val_diff))
 
-        timestamp_ind = np.argwhere(segment_df.columns == "timestamp_ns").ravel()[0]
-        segment_df.iloc[:, timestamp_ind] = segment_df.iloc[:, timestamp_ind] / 1e9
-        # print(f"timestamp_ind: {timestamp_ind}")
+    pool = mpc.Pool(workers)
+    result = pool.map(convert_thread, args)
 
-        base_features = segment_df.shape[1]
-        # segm_columns = segment_df.columns.to_numpy()
-        segm_columns = np.array(segment_df.columns)
-        # print(f"Pre Segment: {segm_columns}")
-        segm_columns[timestamp_ind] = "timestamp_s"
-        # print(f"Post Segment: {segm_columns}")
-        # continue
-
-        if len(segment_df) < bars_n:
-            print(f"Skipping short segment: {segment_df.shape}")
+    for res in result:
+        if res is None:
             continue
-        elif (use_val_diff or add_time_diff) & (len(segment_df) <= bars_n):
-            print(f"Skipping short segment +1: {segment_df.shape}")
-            continue
-
-        if use_val_diff or add_time_diff:
-            offset = 1
-            if add_time_diff:
-                base_features += 1
-                segm_columns = np.concatenate([segm_columns, ['timediff_s']])
-
-        else:
-            offset = 0
-
-        sequences_3d = np.empty((0, bars_n, base_features), dtype=float)
-
-        for sample in range(offset, len(segment_df) - bars_n + 1):
-            if use_val_diff:
-                step_df_2d = segment_df.iloc[sample - 1:sample + bars_n].to_numpy()
-                step_df_2d = np.diff(step_df_2d, axis=0)
-                # print(f"Step diff: {step_df_2d.shape}")
-                # print(step_df_2d)
-            else:
-                step_df_2d = segment_df.iloc[sample:sample + bars_n].to_numpy()
-
-            if add_time_diff:
-                timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
-                stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
-                # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
-                step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
-
-            # print(f"step: {step_df_2d.shape}")
-            # step_df_2d[np.newaxis, :]
-            sequences_3d = np.concatenate([sequences_3d, step_df_2d[np.newaxis, :]], axis=0)
-            # print(f"seq 3d: {sequences_3d.shape}")
-
-            # print(f"Scope: {sample}:{sample + bars_n} / {len(segment_df)}: size: {step_df_2d.shape}")
-            # print(step_df_2d.shape, )
-        # print(f"End seq 3d: {sequences_3d.shape}")
-        # print(f"End cols: {segm_columns}")
-        train_segments.append(sequences_3d)
-        train_columns.append(segm_columns)
-
-    all_samples = sum(map(len, train_segments))
-    print(f"All samples: {all_samples} in: {len(train_segments)} segments")
-    print(segm_columns, len(segm_columns))
+        seq, col = res
+        train_segments.append(seq)
+        train_columns.append(col)
+    # all_samples = sum(map(len, train_segments))
+    # print(f"All samples: {all_samples} in: {len(train_segments)} segments")
+    # print(segm_columns, len(segm_columns))
+    #
 
     return train_segments, train_columns
+
+
+def convert_thread(args):
+    segi, segment_df, bars_n, add_time_diff, use_val_diff = args
+    segment_df = segment_df.copy()
+    print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
+    # print(segment_df.columns)
+
+    timestamp_ind = np.argwhere(segment_df.columns == "timestamp_ns").ravel()[0]
+    segment_df.iloc[:, timestamp_ind] = segment_df.iloc[:, timestamp_ind] / 1e9
+    # print(f"timestamp_ind: {timestamp_ind}")
+
+    base_features = segment_df.shape[1]
+    # segm_columns = segment_df.columns.to_numpy()
+    segm_columns = np.array(segment_df.columns)
+    # print(f"Pre Segment: {segm_columns}")
+    segm_columns[timestamp_ind] = "timestamp_s"
+    # print(f"Post Segment: {segm_columns}")
+    # continue
+
+    if len(segment_df) < bars_n:
+        print(f"Skipping short segment: {segment_df.shape}")
+        return
+    elif (use_val_diff or add_time_diff) & (len(segment_df) <= bars_n):
+        print(f"Skipping short segment +1: {segment_df.shape}")
+        return
+
+    if use_val_diff or add_time_diff:
+        offset = 1
+        if add_time_diff:
+            base_features += 1
+            segm_columns = np.concatenate([segm_columns, ['timediff_s']])
+
+    else:
+        offset = 0
+
+    sequences_3d = np.empty((0, bars_n, base_features), dtype=float)
+
+    for sample in range(offset, len(segment_df) - bars_n + 1):
+        if use_val_diff:
+            step_df_2d = segment_df.iloc[sample - 1:sample + bars_n].to_numpy()
+            step_df_2d = np.diff(step_df_2d, axis=0)
+            # print(f"Step diff: {step_df_2d.shape}")
+            # print(step_df_2d)
+        else:
+            step_df_2d = segment_df.iloc[sample:sample + bars_n].to_numpy()
+
+        if add_time_diff:
+            timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
+            stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
+            # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
+            step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
+
+        # print(f"step: {step_df_2d.shape}")
+        # step_df_2d[np.newaxis, :]
+        sequences_3d = np.concatenate([sequences_3d, step_df_2d[np.newaxis, :]], axis=0)
+        # print(f"seq 3d: {sequences_3d.shape}")
+
+        # print(f"Scope: {sample}:{sample + bars_n} / {len(segment_df)}: size: {step_df_2d.shape}")
+        # print(step_df_2d.shape, )
+    # print(f"End seq 3d: {sequences_3d.shape}")
+    # print(f"End cols: {segm_columns}")
+    # train_segments.append(sequences_3d)
+    # train_columns.append(segm_columns)
+    # pass
+    return sequences_3d, segm_columns
 
 
 @measure_real_time_decorator
@@ -524,6 +544,7 @@ def preprocess_pipe_bars(
             dataframe, split_s=split_interval_s,
             minimum_samples_per_segment=get_n_bars,
     )
+
     segments, columns = convert_bars_to_traindata(
             list_dfsegments,
             bars_n=get_n_bars,
