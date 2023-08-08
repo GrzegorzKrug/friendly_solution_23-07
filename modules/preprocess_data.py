@@ -413,7 +413,6 @@ def convert_bars_to_traindata(
     train_segments = []
     train_columns = []
     for segi, segment_df in enumerate(list_ofdf):
-        # print()
         segment_df = segment_df.copy()
         print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
         # print(segment_df.columns)

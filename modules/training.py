@@ -846,7 +846,7 @@ if __name__ == "__main__":
 
 
     time_size = 20
-    out_sze = 3
+    output_size = 3
     # time_ftrs = 0
     float_feats = 1
 
@@ -874,7 +874,7 @@ if __name__ == "__main__":
     # sys.exit()
     "Model Grid"
     # gen1 = grid_models_generator(time_ftrs, time_size, float_feats=float_feats, out_size=out_sze)
-    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=out_sze)
+    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=output_size)
     # gen3 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
     # gen1 = dummy_grid_generator()
     # for data in gen1:

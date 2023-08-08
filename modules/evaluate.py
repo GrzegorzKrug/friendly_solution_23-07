@@ -32,7 +32,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import matplotlib.pyplot as plt
 from matplotlib.style import use
 
-from preprocess_data import preprocess_pipe
+from preprocess_data import preprocess_pipe_uniform, preprocess_pipe_bars
 import gc
 
 
@@ -473,10 +473,7 @@ def evaluate_pipeline(
 if __name__ == "__main__":
     use('ggplot')
 
-    interval_s = 10
-    time_wind = 50
-    float_feats = 1
-    output_size = 3
+    do_window = False
 
     files = ["obv_600.txt", "on_balance_volume.txt"]
     # files = ["on_balance_volume.txt"]
@@ -488,36 +485,61 @@ if __name__ == "__main__":
 
         name, *_ = file_name.split(".")
 
-        segments, columns = preprocess_pipe(
-                file_path, include_time=True,
-                interval_s=interval_s,
-                add_timediff_feature=True,
-        )
-        # train_data = sequences[0]
-        column = columns[0]
+        if do_window:
+            interval_s = 10
+            time_size = 50
+            float_feats = 1
+            output_size = 3
 
-        time_col = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
-        price_col = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
-        print(f"Time col: {time_col}, Price col: {price_col}")
+            segments, columns = preprocess_pipe_uniform(
+                    file_path, include_time=True,
+                    interval_s=interval_s,
+                    add_timediff_feature=True,
+            )
 
-        samples_n, time_ftrs = segments[0].shape
-        time_ftrs -= 1  # Reduce due to time column
+            column = columns[0]
 
-        train_segments = [to_sequences_forward(segment, time_wind, [1])[0] for segment in segments]
+            timestamp_ind = np.argwhere(column == 'timestamp_s').ravel()[0]  # 0 probably
+            price_ind = np.argwhere(column == 'last').ravel()[0] - 1  # offset to dropped time column
+            print(f"Time col: {timestamp_ind}, Price col: {price_ind}")
 
-        print("single segment", train_segments[0].shape)
-        print(f"Time ftrs: {time_ftrs}, Time window: {time_wind}")
+            samples_n, time_ftrs = segments[0].shape
+            time_ftrs -= 1  # Reduce due to time column
+
+            trainsegments_ofsequences3d = [to_sequences_forward(segment, time_size, [1])[0] for segment
+                                           in segments]
+
+            print("single segment", trainsegments_ofsequences3d[0].shape)
+            print(f"Time ftrs: {time_ftrs}, Time window: {time_size}")
+        else:
+            time_size = 20
+            output_size = 3
+            # time_ftrs = 0
+            float_feats = 1
+
+            trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
+                    file_path, get_n_bars=time_size,
+                    add_timediff_feature=True,
+                    include_timestamp=True,
+                    # first_sample_date="2023-6-29",  # only for on_balance_volume
+            )
+            price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
+            timestamp_ind = np.argwhere(columns[0] == 'timestamp_s').ravel()[0]
+            print(f"Timestamp: {timestamp_ind}, price: {price_ind}")
+            print(columns[0])
+            samples_n, _, time_ftrs = trainsegments_ofsequences3d[0].shape
+            time_ftrs -= 1  # subtract timestamp
 
         evaluate_pipeline(
-                train_segments, price_col,
-                time_wind=time_wind, time_ftrs=time_ftrs,
+                trainsegments_ofsequences3d, price_ind,
+                time_wind=time_size, time_ftrs=time_ftrs,
                 float_feats=float_feats, out_size=output_size,
-                game_duration=800,
-                workers=2,
-                games_n=30,
+                game_duration=400,
+                workers=4,
+                games_n=20,
                 name=f"{name}",
                 # time_sequences=timestamps_s,
-                timestamp_col=time_col,
+                timestamp_col=timestamp_ind,
                 full_eval=False,
         )
         break
