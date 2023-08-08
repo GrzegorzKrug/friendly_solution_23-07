@@ -269,6 +269,9 @@ def builder_2_flats(
     elif iteration == 3:
         reg_k = keras.regularizers.L1(0.0001)
         reg_b = keras.regularizers.L1(0.0001)
+    elif iteration == 4:
+        reg_k = keras.regularizers.L1(0.00001)
+        reg_b = keras.regularizers.L1(0.00001)
     else:
         raise ValueError(f"Iteration not implemented: {iteration}")
 
@@ -490,13 +493,13 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
 
 def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
-    for batch in [500]:
-        for arch_num in [101]:
-            for dc in [0.9]:
-                for nodes in [1000]:
-                    for loss in ['huber', 'mae', ]:
-                        for lr in [1e-4, 1e-5, 1e-6]:
-                            for iteration in [2, 3]:
+    for batch in [300, 500]:
+        for lr in [1e-5, 1e-6]:
+            for arch_num in [101]:
+                for dc in [0.9]:
+                    for iteration in [3, 4, 0]:
+                        for nodes in [1000, 2000]:
+                            for loss in ['huber', 'mae', ]:
                                 print(f"Yielding model, counter: {counter}")
                                 yield counter, (
                                         arch_num, time_feats, time_window, float_feats, out_size,

@@ -874,8 +874,9 @@ if __name__ == "__main__":
     # sys.exit()
     "Model Grid"
     # gen1 = grid_models_generator(time_ftrs, time_size, float_feats=float_feats, out_size=out_sze)
-    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=output_size)
-    # gen3 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_sze)
+    # gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=output_size)
+    gen_it23 = grid_models_generator_it23(time_ftrs, time_size, float_feats=float_feats,
+                                          out_size=output_size)
     # gen1 = dummy_grid_generator()
     # for data in gen1:
     #     single_model_training_function(*data)
@@ -884,13 +885,14 @@ if __name__ == "__main__":
     # manager.list(trainsegments_ofsequences3d)
     # print(manager)
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
+    trainsegments_ofsequences3d = trainsegments_ofsequences3d[:60]
 
     with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
-        for counter, data in enumerate(gen2):
+        for counter, data in enumerate(gen_it23):
             MainLogger.info(f"Adding process with: {data}")
             games_n = 300
-            game_duration = 200
+            game_duration = 500
             # if counter >= 2:
             #     break
             # elif counter <= 11:

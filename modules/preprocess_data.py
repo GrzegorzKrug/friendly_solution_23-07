@@ -511,6 +511,7 @@ def preprocess_pipe_bars(
         split_interval_s=1800,
         add_timediff_feature=True,
         first_sample_date=None,
+        clip_dataframe=None
 ):
     """
 
@@ -533,7 +534,8 @@ def preprocess_pipe_bars(
     "CLEAN"
     dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
 
-    # dataframe = dataframe.iloc[200:500]
+    if clip_dataframe:
+        dataframe = dataframe.iloc[:clip_dataframe, :]
 
     "NORMALIZE"
     dataframe = normalize(dataframe)

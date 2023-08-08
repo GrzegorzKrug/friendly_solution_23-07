@@ -138,10 +138,12 @@ def eval_func(
         print(f"Full eval, games: {game_n}")
         random_start = False
 
-    elif len(segments_oftraindata) <= game_n:
-        random_start = False
-    else:
+    elif len(segments_oftraindata) < game_n:
         random_start = True
+    else:
+        random_start = False
+
+    # print(f"Segments: {len(segments_oftraindata)}, games: {game_n}, random: {random_start}")
 
     # random_start = True
     # else:
@@ -174,8 +176,8 @@ def eval_func(
         if full_eval:
             ses_start = 0
             ses_end = len(ordered_list_of3dsequences) - 1
-            print(f"Full eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
-            ses_end = 5
+            # print(f"Full eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
+            # ses_end = 5
         else:
             if random_start:
                 if n_samples - 1 - session_size < 0:
@@ -192,8 +194,12 @@ def eval_func(
                 print(f"Reducing ses end to: {n_samples} from {ses_end}")
                 ses_end = n_samples
 
-            print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
+            # print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
 
+        print(
+                f"Eval sess: {i_eval_sess} selected segment: {segm_i}, "
+                f"random: {random_start}, full: {full_eval}, "
+                f"start: {ses_start}: end{ses_end}")
         agents_discrete_states, hidden_states = initialize_agents(AGENTS_N)
 
         "Actions:"
@@ -429,11 +435,12 @@ def evaluate_pipeline(
         full_eval=False,
 ):
     # gen1 = grid_models_generator(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
-    gen2 = grid_models_generator_2(time_ftrs, time_size, float_feats=float_feats, out_size=output_size)
+    gen_i23 = grid_models_generator_it23(time_ftrs, time_size, float_feats=float_feats,
+                                         out_size=output_size)
     # gen_it2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
-        for counter, data in enumerate(gen2):
+        for counter, data in enumerate(gen_i23):
             # if counter not in [1, 3]:
             #     continue
             # if counter != 7:
@@ -466,15 +473,20 @@ def evaluate_pipeline(
         # print("results:")
         # print(results)
 
-        tab = unpack_evals_to_table(results)
-        # print(tab)
-        now = datetime.datetime.now()
-        dt_str = f"{now.month}.{now.day}-{now.hour}.{now.minute}"
-        with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
-            fp.write(str(tab))
-            fp.write("\n")
+        try:
+            tab = unpack_evals_to_table(results)
+            # print(tab)
+            now = datetime.datetime.now()
+            dt_str = f"{now.month}.{now.day}-{now.hour}.{now.minute}"
+            with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
+                fp.write(str(tab))
+                fp.write("\n")
 
-        print(f"Saved evals to: evals-{name}-{dt_str}.txt")
+            print(f"Saved evals to: evals-{name}-{dt_str}.txt")
+
+        except Exception as err:
+            print(err)
+            print(f"Results: {results}")
 
 
 if __name__ == "__main__":
@@ -482,7 +494,8 @@ if __name__ == "__main__":
 
     do_window = False
 
-    files = ["obv_600.txt", "on_balance_volume.txt"]
+    files = ["obv_600.txt"]
+    # files = ["obv_600.txt", "on_balance_volume.txt"]
     # files = ["on_balance_volume.txt"]
     for file_name in files:
         file_path = path_data_folder + file_name
@@ -537,13 +550,15 @@ if __name__ == "__main__":
             samples_n, _, time_ftrs = trainsegments_ofsequences3d[0].shape
             time_ftrs -= 1  # subtract timestamp
 
+        # trainsegments_ofsequences3d = trainsegments_ofsequences3d[:2]
+
         evaluate_pipeline(
                 trainsegments_ofsequences3d, price_ind,
                 time_wind=time_size, time_ftrs=time_ftrs,
                 float_feats=float_feats, out_size=output_size,
-                game_duration=400,
+                game_duration=500,
                 workers=4,
-                games_n=20,
+                games_n=50,
                 name=f"{name}",
                 # time_sequences=timestamps_s,
                 timestamp_col=timestamp_ind,
