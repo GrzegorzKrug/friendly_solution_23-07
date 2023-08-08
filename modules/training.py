@@ -845,7 +845,7 @@ if __name__ == "__main__":
     # train_sequences, _ = to_sequences_forward(train_data, time_wind, [1])
 
 
-    time_size = 20
+    time_size = 50
     output_size = 3
     # time_ftrs = 0
     float_feats = 1

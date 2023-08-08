@@ -512,7 +512,7 @@ if __name__ == "__main__":
             print("single segment", trainsegments_ofsequences3d[0].shape)
             print(f"Time ftrs: {time_ftrs}, Time window: {time_size}")
         else:
-            time_size = 20
+            time_size = 50
             output_size = 3
             # time_ftrs = 0
             float_feats = 1
