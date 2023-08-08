@@ -183,6 +183,7 @@ def arch_101(time_feats, time_window, float_feats, out_size, nodes=20, iteration
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
+            iteration=iteration,
 
     )
     return model
@@ -234,6 +235,7 @@ def builder_2_flats(
         time_feats, time_window, float_feats, out_size, nodes,
         dens_on_left=1, dense_on_right=0, common_nodes=1,
         act_L='relu', act_R='relu',
+        iteration=0,
 ):
     """
     2 Pipe lines
@@ -253,16 +255,45 @@ def builder_2_flats(
     time_input = Input(shape=(time_window, time_feats), )
     float_input = Input(shape=(float_feats,), )
 
+    reg_k = None
+    reg_b = None
+    reg_out_k = None
+    reg_out_b = None
+
+    if iteration in [0, 1] or iteration is None:
+        pass
+
+    elif iteration == 2:
+        reg_k = keras.regularizers.L1(0.001)
+        reg_b = keras.regularizers.L1(0.001)
+    elif iteration == 3:
+        reg_k = keras.regularizers.L1(0.0001)
+        reg_b = keras.regularizers.L1(0.0001)
+    else:
+        raise ValueError(f"Iteration not implemented: {iteration}")
+
     "Time series LSTM"
     # input_L = tf.reshape(time_input, (-1, time_window, time_feats))
     flat_input = Flatten()(time_input)
     if dens_on_left > 1:
-        den_L = Dense(nodes, activation=act_L)(flat_input)
+        den_L = Dense(
+                nodes, activation=act_L,
+                bias_regularizer=reg_b, kernel_regularizer=reg_k,
+        )(flat_input)
         for i in range(dens_on_left - 2):
-            den_L = Dense(nodes, activation=act_L)(den_L)
-        den_L = Dense(nodes, activation=act_L)(den_L)
+            den_L = Dense(
+                    nodes, activation=act_L,
+                    bias_regularizer=reg_b, kernel_regularizer=reg_k,
+            )(den_L)
+        den_L = Dense(
+                nodes, activation=act_L,
+                bias_regularizer=reg_b, kernel_regularizer=reg_k,
+        )(den_L)
     else:
-        den_L = Dense(nodes, activation=act_L)(flat_input)
+        den_L = Dense(
+                nodes, activation=act_L,
+                bias_regularizer=reg_b, kernel_regularizer=reg_k,
+        )(flat_input)
         # print("LSTM")
         # print(den_L.shape)
 
@@ -270,7 +301,10 @@ def builder_2_flats(
     fl_dense = float_input
     if dense_on_right > 0:
         for i in range(dense_on_right):
-            fl_dense = Dense(nodes, activation=act_R)(fl_dense)
+            fl_dense = Dense(
+                    nodes, activation=act_R,
+                    bias_regularizer=reg_b, kernel_regularizer=reg_k,
+            )(fl_dense)
 
     conc = Concatenate(axis=1)([den_L, fl_dense])
 
@@ -278,9 +312,14 @@ def builder_2_flats(
     dens = conc
     if common_nodes > 0:
         for i in range(common_nodes):
-            dens = Dense(nodes, activation='relu')(dens)
+            dens = Dense(
+                    nodes, activation='relu',
+                    bias_regularizer=reg_b, kernel_regularizer=reg_k,
+            )(dens)
 
-    last = Dense(out_size, activation='linear')(dens)
+    last = Dense(out_size, activation='linear',
+                 bias_regularizer=reg_out_b, kernel_regularizer=reg_out_k,
+                 )(dens)
     "Assign inputs / outputs"
     model = Model(inputs=[time_input, float_input], outputs=last)
     return model
@@ -449,21 +488,21 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
                             counter += 1
 
 
-def grid_models_generator_it2(time_feats, time_window, float_feats, out_size):
+def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
     for batch in [500]:
-        for arch_num in [1, 3, 101, 103]:
+        for arch_num in [101]:
             for dc in [0.9]:
                 for nodes in [1000]:
                     for loss in ['huber', 'mae', ]:
-                        for lr in [1e-5, 1e-6]:
-                            print(f"Yielding model, counter: {counter}")
-                            iteration = 2
-                            yield counter, (
-                                    arch_num, time_feats, time_window, float_feats, out_size,
-                                    nodes, lr, batch, loss, dc, iteration
-                            )
-                            counter += 1
+                        for lr in [1e-4, 1e-5, 1e-6]:
+                            for iteration in [2, 3]:
+                                print(f"Yielding model, counter: {counter}")
+                                yield counter, (
+                                        arch_num, time_feats, time_window, float_feats, out_size,
+                                        nodes, lr, batch, loss, dc, iteration
+                                )
+                                counter += 1
 
 
 def model_builder(
