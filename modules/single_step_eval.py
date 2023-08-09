@@ -8,7 +8,7 @@ import datetime
 # from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
-from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
+from common_settings import path_data_clean_folder, path_models, path_data_folder
 from common_functions import (
     NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split,
     unpack_evals_to_table,
@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 from matplotlib.style import use
 import pandas as pd
 
-from preprocess_data import preprocess, generate_interpolated_data
+from preprocess_data import preprocess, generate_interpolated_data, preprocess_pipe_bars
 import gc
 
 
@@ -607,7 +607,7 @@ def start_stream_predict(
             iteration=iteration,
     )
     naming_ob = NamingClass(
-            arch_num, iteration=ITERATION,
+            arch_num, iteration=iteration,
             time_feats=time_feats, time_window=time_window, float_feats=float_feats,
             outsize=out_size,
             node_size=nodes, reward_fnum=reward_fnum,
@@ -626,8 +626,8 @@ def start_stream_predict(
     state = 0
     last_segment_end = 0
     last_size = os.path.getsize(input_filepath)
-    loadead_df = pd.read_csv(input_filepath)
-    last_bar_ind = len(loadead_df) - 1
+    loaded_df_bars = pd.read_csv(input_filepath)
+    curr_df_size = len(loaded_df_bars)
     was_ok = True
     if output_filepath is None:
         output_filepath = os.path.join(
@@ -643,8 +643,8 @@ def start_stream_predict(
 
     with open(output_filepath, "at", buffering=1) as fp:
         if not was_file:
-            columns = loadead_df.columns
-            ct = ",".join(cl for cl in columns)
+            input_file_columns = loaded_df_bars.columns
+            ct = ",".join(cl for cl in input_file_columns)
             fp.write(f"{ct}\n")
 
         while True:
@@ -654,65 +654,136 @@ def start_stream_predict(
                 continue
 
             last_size = size
+            prev_df_size = curr_df_size
+
             # print(f"New size: {size}")
 
-            loadead_df = pd.read_csv(input_filepath)
+            # loadead_df = pd.read_csv(input_filepath)
+            loaded_df_bars = pd.read_csv(input_filepath)
             # print(f"Shape: {loadead_df.shape}")
-            missing_predictions = len(loadead_df) - 1 - last_bar_ind
+            curr_df_size = len(loaded_df_bars)
+            missing_predictions = curr_df_size - prev_df_size
+
+            # last_bar_ind = len(loadead_df) - 1
             print(f"File has changed by {missing_predictions} entries")
+            loaded_segments, columns = preprocess_pipe_bars(
+                    input_filepath,
+                    get_n_bars=time_window,
+                    clip_df_left=-1 * (missing_predictions + time_window * 3 + 5),
+                    include_timestamp=False,
+                    workers=1,
+                    # include_t
+
+            )
+            # print(f"Clip L: {-1 * (missing_predictions + time_window + 1)}")
+
+            if len(loaded_segments) < 1:
+                print(
+                        f"{curr_df_size} RESET: Skipping update. No segments")
+                # row = out_df.iloc[i]
+                # print(loaded_segments)
+                ser = loaded_df_bars.iloc[-1, :]
+                fp.write(','.join(map(str, ser)))
+                fp.write(",-1")
+                fp.write("\n")
+                state = 0
+                continue
+
+            # print(f"Segments: {loaded_segments}")
+            loaded_segment = loaded_segments[-1]
+            del loaded_segments
+
+            if len(loaded_segment) < 1:
+                print(
+                        f"{curr_df_size} RESET: Skipping update. Too few bars: {loaded_segment.shape}")
+                # row = out_df.iloc[i]
+                ser = loaded_segment[-1, :]
+                fp.write(','.join(map(str, ser)))
+                fp.write(",-1")
+                fp.write("\n")
+                state = 0
+                continue
+
             # print(f"Missing predictions: {missing_predictions}")
 
             for i in range(missing_predictions):
-                # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
-                dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2].copy()
+                # # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
+                # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2].copy() # UNIFORM
+
+                clipr = (-1 * missing_predictions + i + 1)
+                if clipr != 0:
+                    sequences_3d = loaded_segment[:clipr].copy()  # BARS ONLY
+                else:
+                    sequences_3d = loaded_segment.copy()
+                # print(f"Seq3d shape: {sequences_3d.shape}")
+
                 # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
                 t0 = time.time()
 
-                "CLEAN"
-                dataframe = preprocess(dataframe, first_sample_date=None)
-                if len(dataframe) <= 1:
-                    print(
-                            f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
-                    # row = out_df.iloc[i]
-                    ser = loadead_df.iloc[last_bar_ind + 1 + i]
-                    fp.write(','.join(map(str, ser)))
-                    fp.write(",-1")
-                    fp.write("\n")
-                    state = 0
+                # "CLEAN"
+                # # dataframe = preprocess(dataframe, first_sample_date=None) # UNIFORM
+                # if len(dataframe) <= 1:
+                #     print(
+                #             f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                #     # row = out_df.iloc[i]
+                #     ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                #     fp.write(','.join(map(str, ser)))
+                #     fp.write(",-1")
+                #     fp.write("\n")
+                #     state = 0
+                #
+                #     if was_ok:
+                #         last_segment_end = last_bar_ind + 1 + i
+                #         was_ok = False
+                #     continue
 
-                    if was_ok:
-                        last_segment_end = last_bar_ind + 1 + i
-                        was_ok = False
-                    continue
-
-                segments, columns = generate_interpolated_data(
-                        dataframe=dataframe, include_time=False,
-                        interval_s=interval_s, split_interval_s=split_interval_s
-                )
+                # segments, columns = generate_interpolated_data(
+                #         dataframe=dataframe, include_time=False,
+                #         interval_s=interval_s, split_interval_s=split_interval_s
+                # )
                 # print(f"Splitted into {len(segments)} segments")
 
                 # list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
-                current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
+                # current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
+
                 # print(f"current sequence: {current_sequence.shape}")
 
-                if len(current_sequence) <= 0:
-                    print(f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i} too short sequence")
-                    ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                "UNIFORM"
+                # if len(current_sequence) <= 0:
+                #     print(f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i} too short sequence")
+                #     ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                #     # ser['act'] = -1
+                #     fp.write(','.join(map(str, ser)))
+                #     fp.write(",-1")
+                #     fp.write("\n")
+                #     state = 0
+                #     if was_ok:
+                #         last_segment_end = last_bar_ind + 1 + i
+                #         was_ok = False
+                #     continue
+
+                "BARS"
+                if len(sequences_3d) <= 0:
+                    print(f"{prev_df_size + i + 1} RESET: Skipping iteration: {i} too few bars")
+                    ser = sequences_3d.iloc[-1, :, :]
                     # ser['act'] = -1
                     fp.write(','.join(map(str, ser)))
                     fp.write(",-1")
                     fp.write("\n")
                     state = 0
-                    if was_ok:
-                        last_segment_end = last_bar_ind + 1 + i
-                        was_ok = False
-                    continue
+                    # if was_ok:
+                    #     last_segment_end = last_bar_ind + 1 + i
+                    #     was_ok = False
+                    # continue
 
                 # print(f"Predicting from sequences: {current_sequence.shape}")
 
                 pred_state = np.array(state).reshape(1, 1, 1)
                 # pred_arr = current_sequence[-1, :, :][np.newaxis, :, :]
-                pred_arr = current_sequence[-1, :, :].reshape(1, time_window, 16)
+                # pred_arr = sequences_3d[-1, :, :].reshape(1, time_window, time_feats)
+                pred_arr = sequences_3d[-1, :, :][np.newaxis, :, :]
+                # print(f"pred Arr shape: {pred_arr.shape}")
+
                 # print(f"Pred state: {pred_state}, {pred_state.shape}")
                 # print(f"Predict shapes: {pred_arr.shape}, {pred_state.shape}")
                 predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
@@ -720,7 +791,7 @@ def start_stream_predict(
                 print(f"Predicted: {predicted}")
                 # print(f"Act: {act} from state: {state}")
 
-                ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                ser = sequences_3d[-1, :, :]
                 fp.write(','.join(map(str, ser)))
                 fp.write(f",{act}")
                 fp.write("\n")
@@ -734,21 +805,29 @@ def start_stream_predict(
                     state = 0
 
                 loop_dur = time.time() - t0
-                print(last_bar_ind + i + 1, i,
+                print(prev_df_size + i + 1, i,
                       f"Loop duration: {loop_dur:>5.2}s",
-                      f"Act: {act}, End state:{state}, was state: {prev_state}, (index {last_segment_end}:{last_bar_ind + 2 + i})")
-                was_ok = True
+                      f"Act: {act}, End state:{state}, was state: {prev_state}")
+                # was_ok = True
 
-            last_bar_ind = len(loadead_df) - 1
             print("========")
 
 
 if __name__ == "__main__":
     # input_filepath = os.path.join(path_data_folder, "test_updating.txt")
-    input_filepath = "/mnt/c/export/obv_600.txt"
-    # start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', output_filepath="/home/rafal/predict_1_huber_1e-06.txt")
-    # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', output_filepath="/home/rafal/predict_103_mae_1e-06.txt")
-    # start_stream_predict(input_filepath, arch_num=101, loss='mae', lr='1e-05', output_filepath="/home/rafal/predict_101_mae_1e-05.txt")
+    input_filepath = "/mnt/c/export/obv_600.txt" # Machine file
+    # input_filepath = os.path.join(path_data_folder, "test_updating.txt")  # Local file
+
+    "MACHINE STARTS"
+    start_stream_predict(input_filepath, time_window=50, time_feats=17, nodes=1000 ,arch_num=101, loss='mae', lr='1e-06', output_filepath="/home/rafal/predict_1_huber_1e-06.txt", iteration=0,)
+    # # start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', output_filepath="")
+    # # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', output_filepath="/home/rafal/predict_103_mae_1e-06.txt")
+    # # start_stream_predict(input_filepath, arch_num=101, loss='mae', lr='1e-05', output_filepath="/home/rafal/predict_101_mae_1e-05.txt")
+
+    "LOCAL STARTS"
+    # start_stream_predict(input_filepath, time_window=50, time_feats=17, arch_num=101, nodes=1000,
+    #                      batch=500, loss='mae', lr='1e-06', reward_fnum=6, iteration=3)
+
 
     ## start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', )
     ## start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', )

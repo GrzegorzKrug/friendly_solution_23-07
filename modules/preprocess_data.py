@@ -417,9 +417,12 @@ def convert_bars_to_traindata(
     args = []
     for segi, segment_df in enumerate(list_ofdf):
         args.append((segi, segment_df, bars_n, add_time_diff, use_val_diff))
-
-    pool = mpc.Pool(workers)
-    result = pool.map(convert_thread, args)
+    if workers > 1:
+        pool = mpc.Pool(workers)
+        result = pool.map(convert_thread, args)
+    else:
+        result = [convert_thread(ar) for ar in args]
+        # print(result)
 
     for res in result:
         if res is None:
@@ -438,7 +441,7 @@ def convert_bars_to_traindata(
 def convert_thread(args):
     segi, segment_df, bars_n, add_time_diff, use_val_diff = args
     segment_df = segment_df.copy()
-    print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
+    # print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
     # print(segment_df.columns)
 
     timestamp_ind = np.argwhere(segment_df.columns == "timestamp_ns").ravel()[0]
@@ -511,7 +514,8 @@ def preprocess_pipe_bars(
         split_interval_s=1800,
         add_timediff_feature=True,
         first_sample_date=None,
-        clip_dataframe=None,
+        clip_df_left=None,
+        clip_df_right=None,
         workers=6,
 ):
     """
@@ -535,18 +539,23 @@ def preprocess_pipe_bars(
     "CLEAN"
     dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
 
-    if clip_dataframe:
-        dataframe = dataframe.iloc[:clip_dataframe, :]
+    if clip_df_left:
+        dataframe = dataframe.iloc[clip_df_left:, :]
+
+    if clip_df_right:
+        dataframe = dataframe.iloc[:clip_df_right, :]
 
     "NORMALIZE"
     dataframe = normalize(dataframe)
 
     "SEGMENTS"
+    # print()
     # print(f"Input dataframe: {dataframe.shape}")
     list_dfsegments = split_df_to_segments(
             dataframe, split_s=split_interval_s,
             minimum_samples_per_segment=get_n_bars,
     )
+    # print(len(list_dfsegments))
 
     segments, columns = convert_bars_to_traindata(
             list_dfsegments,
@@ -554,6 +563,9 @@ def preprocess_pipe_bars(
             add_time_diff=add_timediff_feature,
             workers=workers,
     )
+    if len(segments) < 1 or len(columns) < 1:
+        print("Returning empty element from pipe: [], []")
+        return [], []
 
     "MORE FEATURES"
 
