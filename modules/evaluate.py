@@ -210,7 +210,12 @@ def eval_func(
         how_many_actions = 0
         how_many_valid = 0
 
-        labels = ['i_sample', 'Cash', 'Cargo', 'Action', 'Gain', 'Q1', 'Q2', 'Q3', 'price']
+        labels = [
+                'i_sample',
+                'Cash', 'Cargo', 'Action', 'Gain',  # 1,2,3,4
+                'Q1', 'Q2', 'Q3', 'price',  # 5,6,7,8
+                "timestamp_s"  # 9
+        ]
         plot_array = np.zeros((0, len(labels)), dtype=float)
 
         logged_actions = []
@@ -222,6 +227,7 @@ def eval_func(
 
             # if not i_sample % WALK_INTERVAL_DEBUG:
             #     print(f"Walking sample: {i_sample}")
+            timestamp_s = timesegment_2d[-1, timestamp_col]
 
             q_vals = model_keras.predict(
                     [timesegment_stacked, agents_discrete_states],
@@ -249,17 +255,19 @@ def eval_func(
             )
             step_gain = 0.3
 
-            plot_vec = [
-                    i_sample,
-                    hidden_states[0, 0], hidden_states[0, 2], actions[0],
-                    step_gain, *q_vals[0, :], cur_step_price,
-            ]
-
             if time_sequences is not None:
                 sample_time = time_sequences[i_sample]
                 # print(f"Adding action to filesaver: {actions[0]}")
                 if actions[0] != 1:
                     logged_actions.append((sample_time, actions[0], cur_step_price))
+            else:
+                sample_time = None
+            plot_vec = [
+                    i_sample,
+                    hidden_states[0, 0], hidden_states[0, 2], actions[0],
+                    step_gain, *q_vals[0, :], cur_step_price,
+                    sample_time,
+            ]
 
             plot_vec = np.array(plot_vec).reshape(1, -1)
 
@@ -273,17 +281,20 @@ def eval_func(
         # print(f"End cargo: {hidden_states[0, 2]} and price: {cur_step_price}")
         end_gain = hidden_states[0, 0] - hidden_states[0, 1] + hidden_states[0, 2] * cur_step_price
 
-        plt.subplots(3, 1, figsize=(20, 10), dpi=200, height_ratios=[3, 2, 1])
+        plt.subplots(3, 1, figsize=(20, 10), dpi=200, height_ratios=[3, 1, 3])
         # gain = hidden_states[:, 0] - hidden_states[:, 1]
-        x = plot_array[:, 0]
+        # x = plot_array[:, 0]
+        xtmps = plot_array[:, 9]
+        xtmps -= xtmps[0]
+        x = xtmps
 
         plt.subplot(3, 1, 1)
         # for i, lb in enumerate(labels[1:3], 1):
         #     plt.plot(x, plot_array[:, i], label=lb, color=colors[i], alpha=0.8, linewidth=2)
         for act in [0, 1, 2]:
             mask = plot_array[:, 3] == act
-            xa = x[mask]
-            ya = plot_array[mask, -1]
+            xa = xtmps[mask]
+            ya = plot_array[mask, 8]
             lb = {0: "Buy", 1: "Pass", 2: "Sell"}[act]
             s = {0: 35, 1: 15, 2: 40}[act]
             plt.scatter(xa, ya, label=f"Action: {lb}", s=s)
@@ -291,7 +302,7 @@ def eval_func(
         # print()
         eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 5)))
 
-        plt.plot(x, plot_array[:, -1], label="Price", color=colors[0], alpha=0.6, linewidth=2)
+        plt.plot(xtmps, plot_array[:, 8], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")
         plt.legend()
 
@@ -305,7 +316,7 @@ def eval_func(
         plt.legend()
 
         plt.subplot(3, 1, 3)
-        for i, lb in enumerate(labels[5:-1], 5):
+        for i, lb in enumerate(labels[5:8], 5):
             lb = {5: "Q1:Buy", 6: "Q2:Pass", 7: "Q3:Sell"}[i]
             plt.plot(x, plot_array[:, i], label=lb, color=colors[i], alpha=0.8, linewidth=2)
 
@@ -550,15 +561,15 @@ if __name__ == "__main__":
             samples_n, _, time_ftrs = trainsegments_ofsequences3d[0].shape
             time_ftrs -= 1  # subtract timestamp
 
-        # trainsegments_ofsequences3d = trainsegments_ofsequences3d[:2]
+        trainsegments_ofsequences3d = trainsegments_ofsequences3d[:60]
 
         evaluate_pipeline(
                 trainsegments_ofsequences3d, price_ind,
                 time_wind=time_size, time_ftrs=time_ftrs,
                 float_feats=float_feats, out_size=output_size,
-                game_duration=500,
-                workers=4,
-                games_n=50,
+                game_duration=1000,
+                workers=3,
+                games_n=40,
                 name=f"{name}",
                 # time_sequences=timestamps_s,
                 timestamp_col=timestamp_ind,
