@@ -555,7 +555,7 @@ def preprocess_pipe_bars(
             dataframe, split_s=split_interval_s,
             minimum_samples_per_segment=get_n_bars,
     )
-    # print(len(list_dfsegments))
+    print("Splited data into:", len(list_dfsegments))
 
     segments, columns = convert_bars_to_traindata(
             list_dfsegments,

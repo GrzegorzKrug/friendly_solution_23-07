@@ -248,7 +248,7 @@ def unpack_evals_to_table(res_list, add_summary=True):
     """
     table = prettytable.PrettyTable()
     if add_summary:
-        columns = ["Sum gain:", "Sum valids:", "Best gain:"]
+        columns = ["Sum gain", "Best gain", "% valids", "mean valids", "Sum valids", ]
     else:
         columns = []
 
@@ -277,20 +277,35 @@ def unpack_evals_to_table(res_list, add_summary=True):
             continue
         name, runs = args
         row = []
+        # perc_valids_arr = []
         for val in runs:
             # print(f"val: {val}")
             # row.append(val)
             if add_summary:
                 total_valid_acts += val[1]
                 total_gain += val[2]
+                # perc_valids_arr.append(val[2] / val[1])
 
             row = row + [val[0], val[1], np.round(val[2], 5)]
 
         # print(row)
-        best_gain_tuple = max(runs, key=lambda x: x[2])
+        vals_arr = np.array(runs)
+        print(f"np vals: {vals_arr.shape}")
+
+        # best_gain_tuple = max(runs, key=lambda x: x[2])
+        best_gain = vals_arr[:, 2].max()
+        mean_perc_valid = (vals_arr[:, 1] / vals_arr[:, 0]).mean().round(2)
+        perc_valid = vals_arr[:, :2].sum(axis=0)
+        perc_valid = np.round(perc_valid[1] / perc_valid[0] * 100, 1)
 
         if add_summary:
-            all_rows.append((name, np.round(total_gain, 5), total_valid_acts, best_gain_tuple[2], *row))
+            all_rows.append((
+                    name,
+                    np.round(total_gain, 5), best_gain,
+                    perc_valid, mean_perc_valid,
+                    total_valid_acts,
+                    *row
+            ))
         else:
             all_rows.append((name, *row))
     # print(table)

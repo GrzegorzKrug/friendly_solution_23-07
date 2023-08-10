@@ -8,7 +8,7 @@ import datetime
 from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
-from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
+from common_settings import path_data_clean_folder, path_models, path_data_folder
 from common_functions import (
     NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split,
     unpack_evals_to_table,
@@ -503,6 +503,7 @@ def evaluate_pipeline(
 if __name__ == "__main__":
     use('ggplot')
 
+    "KEEEP"
     do_window = False
 
     files = ["obv_600.txt"]
