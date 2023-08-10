@@ -901,7 +901,7 @@ if __name__ == "__main__":
     # manager.list(trainsegments_ofsequences3d)
     # print(manager)
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
-    trainsegments_ofsequences3d = trainsegments_ofsequences3d[:60]
+    trainsegments_ofsequences3d = trainsegments_ofsequences3d[:40]
 
     with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
