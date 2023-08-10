@@ -517,6 +517,7 @@ def preprocess_pipe_bars(
         clip_df_left=None,
         clip_df_right=None,
         workers=6,
+        minsamples_insegment=None,
 ):
     """
 
@@ -531,6 +532,8 @@ def preprocess_pipe_bars(
         first_sample_date: 'YYYY-MM-DD'
             Do not 0 pad!
             "2023-6-15"
+        clip_df_left: CLIPS after preproces date cut
+        clip_df_right:  CLIPS after clipping left
     Returns:
 
     """
@@ -551,9 +554,10 @@ def preprocess_pipe_bars(
     "SEGMENTS"
     # print()
     # print(f"Input dataframe: {dataframe.shape}")
+    minsamples = max((get_n_bars, minsamples_insegment))
     list_dfsegments = split_df_to_segments(
             dataframe, split_s=split_interval_s,
-            minimum_samples_per_segment=get_n_bars,
+            minimum_samples_per_segment=minsamples,
     )
     print("Splited data into:", len(list_dfsegments))
 

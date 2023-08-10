@@ -8,7 +8,7 @@ import logger
 from random import sample, shuffle
 from actors import initialize_agents, resolve_actions_multibuy, resolve_actions_singlebuy
 
-from common_settings import ITERATION, path_data_clean_folder, path_models, path_data_folder
+from common_settings import path_data_clean_folder, path_models, path_data_folder
 from common_functions import NamingClass, get_splits, get_eps, to_sequences_forward, load_data_split
 from reward_functions import RewardStore
 
@@ -93,17 +93,19 @@ class ModelMemory:
             self.migrate(agents_mem.memory)
 
     def add_sample(
-            self, env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, reward, done,
+            self, segment_i, env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, reward,
+            done,
     ):
         self.memory.append((
-                env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, reward, done,
+                segment_i, env_state_ind, env_state_ind_fut,
+                agent_state, agent_state_fut, act, reward, done,
         ))
 
     @measure_real_time_decorator
-    def migrate(self, mem):
-        for batch in mem:
+    def migrate(self, segment_i, mem_iterable):
+        for batch in mem_iterable:
             # print(f"Migrating batch: {batch}")
-            self.add_sample(*batch[:-1])  # Drop q-vals at end
+            self.add_sample(segment_i, *batch[:-1])  # Drop q-vals at end
 
     # def add_batch(self, *args):
     #     for batch in zip(*args):
@@ -379,9 +381,11 @@ def train_qmodel(
 
                 dones = [done_session] * agents_n
 
-                fresh_memory.add_batch(env_states_inds, env_states_inds_fut, agents_discrete_states,
-                                       new_states,
-                                       actions, rewards, dones, q_vals)
+                fresh_memory.add_batch(
+                        env_states_inds, env_states_inds_fut, agents_discrete_states,
+                        new_states,
+                        actions, rewards, dones, q_vals
+                )
 
             else:
                 "Dont train"
@@ -424,36 +428,38 @@ def train_qmodel(
             )
             # L(history.history['loss'])
             # loss_file.write(f"{i_train_sess},{fresh_loss}\n")
-            loss_file.write(f"{i_train_sess},{fresh_loss},{0}\n")
+
+            # loss_file.write(f"{i_train_sess},{fresh_loss},{0}\n")
 
             if len(model_memory) <= (old_memory_size // 2):
                 "Migrate full"
-                # shuffle(fresh_memory.memory)
-                # model_memory.migrate(fresh_memory.memory)
+                shuffle(fresh_memory.memory)
+                model_memory.migrate(segm_i, fresh_memory.memory)
 
             else:
                 "Migrate fraction memory"
                 k = int(remember_fresh_fraction * len(fresh_memory))
-                # model_memory.migrate(sample(fresh_memory.memory, k))
+                model_memory.migrate(segm_i, sample(fresh_memory.memory, k))
 
-            # "Train from old"
-            # k = int(train_from_oldmem_fraction * len(model_memory))
-            # train_number = max(0, int(extra_training_from_oldmemory))
-            # if k > 3000:
-            #     # print(f"Retraining for: {train_number + 1}")
-            #     for tri_i in range(train_number + 1):
-            #         "Pick random samples"
-            #         old_samples = sample(model_memory.memory, k)
-            #         old_loss = deep_q_reinforce_oldmem(
-            #                 model_keras, old_samples,
-            #                 discount=discount,
-            #                 env_alldata3d=session_sequences3d,
-            #                 mini_batchsize=int(naming_ob.batch),
-            #         )
-            #         loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
-            # else:
-            #     for tri_i in range(train_number + 1):
-            #         loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
+            "Train from old"
+            k = int(train_from_oldmem_fraction * len(model_memory))
+            train_number = max(0, int(extra_training_from_oldmemory)) + 1
+            if k > 3000:
+                # print(f"Retraining for: {train_number + 1}")
+                for tri_i in range(train_number):
+                    "Pick random samples"
+                    old_samples = sample(model_memory.memory, k)
+                    old_loss = deep_q_reinforce_oldmem(
+                            model_keras, old_samples,
+                            discount=discount,
+                            # env_alldata3d=session_sequences3d,
+                            segments_of3ddata=segmentslist_alldata3d,
+                            mini_batchsize=int(naming_ob.batch),
+                    )
+                    loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
+            else:
+                for tri_i in range(train_number):
+                    loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
 
         "RESOLVE END SCORE"
 
@@ -620,7 +626,7 @@ def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, reward
 def deep_q_reinforce_oldmem(
         mod, old_samples,
         discount=0.9,
-        env_alldata3d=None,
+        segments_of3ddata=None,
         mini_batchsize=500,
 ):
     # batch_gen = get_big_batch(
@@ -642,9 +648,10 @@ def deep_q_reinforce_oldmem(
     losses = []
     time_f_start = time.time()
 
+    "BATCH TRAINING"
     for start_ind, stop_ind in zip(split_inds, split_inds[1:]):
         batch_time = time.time()
-        RUN_LOGGER.debug(f"Training Batch: {start_ind, stop_ind}")
+        RUN_LOGGER.debug(f"OldMemory Training Batch: {start_ind, stop_ind}")
         samples_slice = old_samples[start_ind:stop_ind]
 
         envs_inds = []
@@ -656,14 +663,15 @@ def deep_q_reinforce_oldmem(
         dones = []
 
         "Make lists"
-        for env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done in samples_slice:
-            envs_inds.append(env_state_ind)
+        for segmet_i, env_state_ind, env_state_ind_fut, agent_state, agent_state_fut, act, rew, done in samples_slice:
+            envs_inds.append((segmet_i, env_state_ind))
             if done:
-                envs_inds_fut.append(env_state_ind)
+                print("YOU GOT DONE SAMPLE")
+                envs_inds_fut.append((segmet_i, env_state_ind))
                 states_fut.append(agent_state)
                 # envs_inds_fut.append(None)
             else:
-                envs_inds_fut.append(env_state_ind_fut)
+                envs_inds_fut.append((segmet_i, env_state_ind_fut))
                 states_fut.append(agent_state_fut)
 
             states.append(agent_state)
@@ -680,8 +688,14 @@ def deep_q_reinforce_oldmem(
 
 
         "Get arrays from indexes"
-        envs_states_arr_fut = env_alldata3d[envs_inds_fut]
-        envs_states_arr = env_alldata3d[envs_inds]
+        # envs_states_arr_fut = env_alldata3d[envs_inds_fut]
+        # envs_states_arr = env_alldata3d[envs_inds]
+        envs_states_arr_fut = [segments_of3ddata[segi][ind] for (segi, ind) in envs_inds_fut]
+        envs_states_arr = [segments_of3ddata[segi][ind] for (segi, ind) in envs_inds]
+
+        envs_states_arr_fut = np.array(envs_states_arr_fut)
+        envs_states_arr = np.array(envs_states_arr)
+        # print("Envs shapes now: cur/fut", envs_states_arr.shape, envs_states_arr_fut.shape)
 
         "Old States"
         # _wal, _st = np.array(old_states, dtype=object).T
@@ -855,6 +869,7 @@ if __name__ == "__main__":
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
             workers=6,
+            minsamples_insegment=300,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
     price_ind = np.argwhere(columns[0] == 'last').ravel()[0]
@@ -892,7 +907,7 @@ if __name__ == "__main__":
         process_list = []
         for counter, data in enumerate(gen_it23):
             MainLogger.info(f"Adding process with: {data}")
-            games_n = 300
+            games_n = 100
             game_duration = 500
             # if counter >= 2:
             #     break
@@ -934,6 +949,8 @@ if __name__ == "__main__":
             if len(process_list) <= 0:
                 break
 
-            time.sleep(2)
+            time.sleep(10)
+            ret = gc.collect()
+            print(f"Loop collected: {ret}")
 
     print("Script end....")
