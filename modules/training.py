@@ -282,7 +282,7 @@ def train_qmodel(
             session_eps = get_eps(i_train_sess, games_n, max_explore=max_eps)
 
         RUN_LOGGER.info(
-                f"Staring session: {i_train_sess + 1} of {games_n} (Eps: {session_eps:>2.3f})@ segm:{segm_i}: {naming_ob.path} Indexes: {ses_start, ses_end}, Ses:size: {game_duration}.")
+                f"Staring session: {i_train_sess + 1} of {games_n} (Eps: {session_eps:>2.3f})@ segm:{segm_i}: Indexes: {ses_start, ses_end}, Segm size: {len(session_sequences3d)}, {naming_ob.path}.")
         # print(f"Data shape: {session_sequences3d.shape}")
 
         "Start with different money values"
@@ -868,7 +868,7 @@ if __name__ == "__main__":
     # file_path = os.path.join(path_data_folder, "on_balance_volume.txt")
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
-            workers=6,
+            workers=10,
             minsamples_insegment=300,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
@@ -903,7 +903,7 @@ if __name__ == "__main__":
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
     trainsegments_ofsequences3d = trainsegments_ofsequences3d[:40]
 
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         process_list = []
         for counter, data in enumerate(gen_it23):
             MainLogger.info(f"Adding process with: {data}")
