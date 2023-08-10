@@ -199,7 +199,7 @@ def eval_func(
         print(
                 f"Eval sess: {i_eval_sess} selected segment: {segm_i}, "
                 f"random: {random_start}, full: {full_eval}, "
-                f"start: {ses_start}: end{ses_end}")
+                f"start: {ses_start}, end: {ses_end}, size: {len(ordered_list_of3dsequences)}")
         agents_discrete_states, hidden_states = initialize_agents(AGENTS_N)
 
         "Actions:"
