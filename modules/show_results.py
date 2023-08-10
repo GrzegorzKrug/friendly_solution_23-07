@@ -35,7 +35,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
     x_loss = np.linspace(0, sess_df.loc[len(sess_df) - 1, 'i_train_sess'], len(loss_df))
     # sample_min
 
-    plt.subplots(ROWS, 1, figsize=(25, 12), dpi=300, height_ratios=[2, 3, 2, 4], sharex=True)
+    plt.subplots(ROWS, 1, figsize=(30, 15), dpi=250, height_ratios=[2, 3, 8, 4], sharex=True)
     plt.subplot(ROWS, 1, 1)
     plt.plot(x_sess, sess_df['sess_eps'], label='Exploration', color='black', alpha=0.7)
 
@@ -70,7 +70,7 @@ def make_plot(folder, dt_str, naming: NamingClass = None):
 
     plt.subplot(ROWS, 1, 4)
     plt.plot(x_sess, sess_df['gain'], label='EndGain', color='green')
-    plt.plot(x_sess[[0, -1]], [0, 0], color='black')
+    plt.plot(x_sess[[0, -1]], [0, 0], color='black', alpha=0.5)
     plt.legend()
 
     if naming:
