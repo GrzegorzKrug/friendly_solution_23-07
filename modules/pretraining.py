@@ -159,7 +159,7 @@ def pretrain_qmodel(
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
         epochs=3,
-        batch_train=20000,
+        batch_train=25000,
 
 ):
     RUN_LOGGER.debug(f"Train params: {naming_ob}: trainN:{games_n}, agents: {agents_n}.")
@@ -253,6 +253,12 @@ def pretrain_qmodel(
 
     model_keras.save_weights(path_this_model_folder + "weights.keras")
     RUN_LOGGER.info(f"PRETRAIN Saved weights: {naming_ob}")
+
+    ret = gc.collect()
+    print(f"Loop collected: {ret}")
+    tf.keras.backend.clear_session()
+    ret = gc.collect()
+    print(f"Loop collected: {ret}")
 
 
 def save_csv_locked(df, path):
