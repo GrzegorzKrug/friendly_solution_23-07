@@ -697,7 +697,7 @@ def start_stream_predict(
                 print(
                         f"{curr_df_size} RESET: Skipping update. Too few bars: {loaded_segment.shape}")
                 # row = out_df.iloc[i]
-                ser = loaded_segment[-1, :]
+                ser = loaded_df_bars.iloc[-1, :]
                 fp.write(','.join(map(str, ser)))
                 fp.write(",-1")
                 fp.write("\n")
@@ -713,8 +713,10 @@ def start_stream_predict(
                 clipr = (-1 * missing_predictions + i + 1)
                 if clipr != 0:
                     sequences_3d = loaded_segment[:clipr].copy()  # BARS ONLY
+                    cur_raw_df = loaded_df_bars[:clipr]
                 else:
                     sequences_3d = loaded_segment.copy()
+                    cur_raw_df = loaded_df_bars
                 # print(f"Seq3d shape: {sequences_3d.shape}")
 
                 # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
@@ -765,16 +767,13 @@ def start_stream_predict(
                 "BARS"
                 if len(sequences_3d) <= 0:
                     print(f"{prev_df_size + i + 1} RESET: Skipping iteration: {i} too few bars")
-                    ser = sequences_3d.iloc[-1, :, :]
+                    ser = cur_raw_df.iloc[-1]
                     # ser['act'] = -1
                     fp.write(','.join(map(str, ser)))
                     fp.write(",-1")
                     fp.write("\n")
                     state = 0
-                    # if was_ok:
-                    #     last_segment_end = last_bar_ind + 1 + i
-                    #     was_ok = False
-                    # continue
+                    continue
 
                 # print(f"Predicting from sequences: {current_sequence.shape}")
 
@@ -791,7 +790,7 @@ def start_stream_predict(
                 print(f"Predicted: {predicted}")
                 # print(f"Act: {act} from state: {state}")
 
-                ser = sequences_3d[-1, :, :]
+                ser = cur_raw_df.iloc[-1]
                 fp.write(','.join(map(str, ser)))
                 fp.write(f",{act}")
                 fp.write("\n")
