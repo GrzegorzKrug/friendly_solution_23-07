@@ -554,7 +554,11 @@ def preprocess_pipe_bars(
     "SEGMENTS"
     # print()
     # print(f"Input dataframe: {dataframe.shape}")
-    minsamples = max((get_n_bars, minsamples_insegment))
+    if minsamples_insegment:
+        minsamples = max((get_n_bars, minsamples_insegment))
+    else:
+        minsamples = get_n_bars
+
     list_dfsegments = split_df_to_segments(
             dataframe, split_s=split_interval_s,
             minimum_samples_per_segment=minsamples,
