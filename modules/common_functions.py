@@ -248,7 +248,7 @@ def unpack_evals_to_table(res_list, add_summary=True):
     """
     table = prettytable.PrettyTable()
     if add_summary:
-        columns = ["Sum gain", "Best gain", "% valids", "mean valids", "Sum valids", ]
+        columns = ["Sum gain", "Best gain", "% valids", "Sum valids", "mean valids", ]
     else:
         columns = []
 
@@ -302,8 +302,8 @@ def unpack_evals_to_table(res_list, add_summary=True):
             all_rows.append((
                     name,
                     np.round(total_gain, 5), best_gain,
-                    perc_valid, mean_perc_valid,
-                    total_valid_acts,
+                    perc_valid, total_valid_acts,
+                    mean_perc_valid,
                     *row
             ))
         else:
