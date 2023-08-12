@@ -323,6 +323,12 @@ def single_model_pretraining_function(
         #     pass
         # f"Limitig gpu: {gpu}"
         # tf.config.experimental.set_memory_growth(gpu, True)
+
+        path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
+
+        os.makedirs(path_this_model_folder, exist_ok=True)
+        os.makedirs(os.path.join(path_this_model_folder + "data"), exist_ok=True)
+
         pretrain_qmodel(
                 model, train_sequences,
                 price_col_ind=price_ind,
