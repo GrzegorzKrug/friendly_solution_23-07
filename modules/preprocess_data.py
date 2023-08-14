@@ -538,9 +538,7 @@ def preprocess_pipe_bars(
 
     """
     dataframe = pd.read_csv(input_data_path)
-
-    "CLEAN"
-    dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
+    # print("LOADED CSV")
 
     if clip_df_left:
         dataframe = dataframe.iloc[clip_df_left:, :]
@@ -548,8 +546,13 @@ def preprocess_pipe_bars(
     if clip_df_right:
         dataframe = dataframe.iloc[:clip_df_right, :]
 
+    "CLEAN"
+    dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
+    # print("PREPROCES END")
+
     "NORMALIZE"
     dataframe = normalize(dataframe)
+    # print("NORM END")
 
     "SEGMENTS"
     # print()
