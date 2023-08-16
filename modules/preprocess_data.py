@@ -419,6 +419,7 @@ def convert_bars_to_traindata(
     train_segments = []
     train_columns = []
     args = []
+    print(f"Converting bars to traindata, workers: {workers}")
     for segi, segment_df in enumerate(list_ofdf):
         args.append((segi, segment_df, bars_n, add_time_diff, use_val_diff))
     if workers > 1:

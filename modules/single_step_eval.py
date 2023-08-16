@@ -831,7 +831,7 @@ def start_backtest(
         # interval_s=10,
         output_filepath=None,
 
-        preprocess_workers=8,
+        preprocess_workers=6,
 ):
     model_keras = model_builder(
             arch_num,
