@@ -546,34 +546,34 @@ def start_continous_eval(
     pass
 
 
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
-import watchdog
-
-
-# class FileHandler(FileSystemEventHandler):
-#     def __init__(self, callback):
-#         # self.filename = filename
-#         self.callback = callback
-#         # self.last_line = None
+# from watchdog.observers import Observer
+# from watchdog.events import FileSystemEventHandler
+# import watchdog
+#
+#
+# # class FileHandler(FileSystemEventHandler):
+# #     def __init__(self, callback):
+# #         # self.filename = filename
+# #         self.callback = callback
+# #         # self.last_line = None
+# #
+# #     def on_any_event(self, event):
+# #         print(f"Any event: {event}")
+# #
+# #     def on_modified(self, event):
+# #         print("Modified event")
+# #         self.callback()
+# class FilePatternHandler(watchdog.events.PatternMatchingEventHandler):
+#     def __init__(self):
+#         watchdog.events.PatternMatchingEventHandler.__init__(
+#                 self,
+#                 patterns=["*.txt"],
+#                 ignore_directories=True,
+#                 case_sensitive=False,
+#         )
 #
 #     def on_any_event(self, event):
-#         print(f"Any event: {event}")
-#
-#     def on_modified(self, event):
-#         print("Modified event")
-#         self.callback()
-class FilePatternHandler(watchdog.events.PatternMatchingEventHandler):
-    def __init__(self):
-        watchdog.events.PatternMatchingEventHandler.__init__(
-                self,
-                patterns=["*.txt"],
-                ignore_directories=True,
-                case_sensitive=False,
-        )
-
-    def on_any_event(self, event):
-        print(f"Any event occured: {event}")
+#         print(f"Any event occured: {event}")
 
 
 def dummy(*a):
@@ -831,7 +831,7 @@ def start_backtest(
         # interval_s=10,
         output_filepath=None,
 
-        preprocess_workers=6,
+        preprocess_workers=10,
 ):
     model_keras = model_builder(
             arch_num,
