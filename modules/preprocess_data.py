@@ -446,7 +446,7 @@ def convert_bars_to_traindata(
 def convert_thread(args):
     segi, segment_df, bars_n, add_time_diff, use_val_diff = args
     segment_df = segment_df.copy()
-    # print(f"Segment {segi:>3}: {segment_df.shape}. cols: ")
+    print(f"Starting conversion: {segi:>3}: {segment_df.shape}")
     # print(segment_df.columns)
 
     timestamp_ind = np.argwhere(segment_df.columns == "timestamp_ns").ravel()[0]
