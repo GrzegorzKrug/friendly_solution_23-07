@@ -60,6 +60,7 @@ def eval_func(
 
         reward_f_num=3,
         game_n=3,
+        action_cost=0.001,
         # discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
@@ -219,6 +220,9 @@ def eval_func(
         plot_array = np.zeros((0, len(labels)), dtype=float)
 
         logged_actions = []
+        last_score = ordered_list_of3dsequences[ses_start, 0, price_col_ind]
+        score = last_score
+        hidden_states[0][0] = last_score
 
         for i_sample in range(ses_start, ses_end):  # Never in done state
 
@@ -251,9 +255,17 @@ def eval_func(
 
             "Dont train"
             new_states, new_hidden_states = resolve_actions_func(
-                    cur_step_price, agents_discrete_states, hidden_states, actions
+                    cur_step_price, agents_discrete_states, hidden_states, actions,
+                    action_cost=action_cost,
             )
-            step_gain = 0.3
+
+            "GET POST ACTION SCORE"
+            if actions[0] == 0:
+                score = last_score - action_cost
+            elif actions[0] == 2:
+                score == new_hidden_states[0][0]
+
+            last_score = score
 
             if time_sequences is not None:
                 sample_time = time_sequences[i_sample]
@@ -265,7 +277,7 @@ def eval_func(
             plot_vec = [
                     i_sample,
                     hidden_states[0, 0], hidden_states[0, 2], actions[0],
-                    step_gain, *q_vals[0, :], cur_step_price,
+                    score, *q_vals[0, :], cur_step_price,
                     sample_time,
             ]
 
@@ -279,7 +291,8 @@ def eval_func(
 
         # tend_walking = time.time()
         # print(f"End cargo: {hidden_states[0, 2]} and price: {cur_step_price}")
-        end_gain = hidden_states[0, 0] - hidden_states[0, 1] + hidden_states[0, 2] * cur_step_price
+        end_gain = hidden_states[0, 0] - hidden_states[0, 1] + hidden_states[0, 2] * (
+                cur_step_price - action_cost)
 
         plt.subplots(3, 1, figsize=(20, 10), dpi=200, height_ratios=[3, 1, 3])
         # gain = hidden_states[:, 0] - hidden_states[:, 1]
@@ -301,7 +314,7 @@ def eval_func(
 
         # print()
         eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 5)))
-
+        plt.plot(xtmps, plot_array[:, 4], label="Score", color='green', alpha=0.4)
         plt.plot(xtmps, plot_array[:, 8], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")
         plt.legend()
@@ -451,6 +464,8 @@ def evaluate_pipeline(
     # gen_it2 = grid_models_generator_it2(time_ftrs, time_wind, float_feats=float_feats, out_size=out_size)
     with ProcessPoolExecutor(max_workers=workers) as executor:
         process_list = []
+        eval_t0 = time.time()
+
         for counter, data in enumerate(gen_i23):
             # if counter not in [1, 3]:
             #     continue
@@ -483,6 +498,7 @@ def evaluate_pipeline(
         results = [proc.result() for proc in process_list]
         # print("results:")
         # print(results)
+        eval_dur = time.time() - eval_t0
 
         try:
             tab = unpack_evals_to_table(results)
@@ -491,6 +507,8 @@ def evaluate_pipeline(
             dt_str = f"{now.month}.{now.day}-{now.hour}.{now.minute}"
             with open(os.path.join(path_models, f"evals-{name}-{dt_str}.txt"), "wt") as fp:
                 fp.write(str(tab))
+                fp.write("\n")
+                fp.write(f"Full evaluation took: {eval_dur / 60:>5.2f} min")
                 fp.write("\n")
 
             print(f"Saved evals to: evals-{name}-{dt_str}.txt")
@@ -527,6 +545,7 @@ if __name__ == "__main__":
                     file_path, include_time=True,
                     interval_s=interval_s,
                     add_timediff_feature=True,
+
             )
 
             column = columns[0]
@@ -553,6 +572,9 @@ if __name__ == "__main__":
                     file_path, get_n_bars=time_size,
                     add_timediff_feature=True,
                     include_timestamp=True,
+                    minsamples_insegment=300,
+                    # clip_df_left=5000,
+                    # clip_df_right=12000,
                     # first_sample_date="2023-6-29",  # only for on_balance_volume
             )
             price_ind = np.argwhere(columns[0] == 'last').ravel()[0]

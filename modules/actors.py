@@ -74,7 +74,9 @@ def resolve_actions_multibuy(cur_step_price, discrete_states, hidden_states, act
     return new_disc_state, new_hidden_state
 
 
-def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, actions, price_mod=1):
+def resolve_actions_singlebuy(
+        cur_step_price, discrete_states, hidden_states, actions, price_mod=1,
+        action_cost=0.0):
     """
 
     Args:
@@ -95,7 +97,7 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
             if new_disc_state[ag_i] == 0:
                 "BUY only if have none"
                 new_disc_state[ag_i] = 1
-                new_hidden_state[ag_i][0] -= cur_step_price * price_mod
+                new_hidden_state[ag_i][0] -= cur_step_price * price_mod + action_cost
                 new_hidden_state[ag_i][2] += 1
                 new_hidden_state[ag_i][3] = cur_step_price  # Remember buy price
                 new_hidden_state[ag_i][4] = 0  # Reset idle counter
@@ -115,7 +117,7 @@ def resolve_actions_singlebuy(cur_step_price, discrete_states, hidden_states, ac
                 new_hidden_state[ag_i][2] = 0  # Set 0 asset
             else:
                 "Can sell"
-                new_hidden_state[ag_i][0] += cur_step_price * price_mod  # Gain cash wallet
+                new_hidden_state[ag_i][0] += cur_step_price * price_mod - action_cost  # Gain cash wallet
                 new_hidden_state[ag_i][2] -= 1  # Less cargo
                 new_hidden_state[ag_i][4] = 0  # Reset idle counter
 
