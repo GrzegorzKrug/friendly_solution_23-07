@@ -99,18 +99,9 @@ def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = No
     df = df.assign(dayfraction=df['time'].apply(timestr_to_dayfraction))
     df = df.assign(seconds=df['time'].apply(timestr_to_seconds))
 
-    time_fmt = "%Y-%m-%d"
-    dt_64 = pd.to_datetime(df['date'], format=time_fmt)
-    # print(dt_64, dt_64.dtype)
-    # print(dt_64.dt.dayofweek)
+    df, dt_64 = add_timestamp_to_df(df)
 
-    tdelta = df['time'].apply(timestr_to_timedelta)
-    timestamp = dt_64.values + tdelta
-    # print(timestamp.dtype)
-    df = df.assign(timestamp_str=timestamp)
-    df = df.assign(timestamp_ns=timestamp.astype(np.int64))
     # print(timestamp.astype(int))
-
     # print(dir(dt_64))
     # print(timestamp)
     # ""
@@ -172,6 +163,19 @@ def preprocess(df, allow_plot=False, save_path=None, first_sample_date: str = No
         df.to_csv(os.path.join(path_data_clean_folder, "cleaned.csv"), index=False)
 
     return df
+
+
+def add_timestamp_to_df(df):
+    time_fmt = "%Y-%m-%d"
+    dt_64 = pd.to_datetime(df['date'], format=time_fmt)
+    # print(dt_64, dt_64.dtype)
+    # print(dt_64.dt.dayofweek)
+    tdelta = df['time'].apply(timestr_to_timedelta)
+    timestamp = dt_64.values + tdelta
+    # print(timestamp.dtype)
+    df = df.assign(timestamp_str=timestamp)
+    df = df.assign(timestamp_ns=timestamp.astype(np.int64))
+    return df, dt_64
 
 
 DATA_NORM_DICT = {
@@ -518,6 +522,9 @@ def preprocess_pipe_bars(
         clip_df_right=None,
         workers=6,
         minsamples_insegment=None,
+
+        do_clean=True,
+        do_normalize=True,
 ):
     """
 
@@ -547,12 +554,19 @@ def preprocess_pipe_bars(
         dataframe = dataframe.iloc[:clip_df_right, :]
 
     "CLEAN"
-    dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
-    # print("PREPROCES END")
+    if do_clean:
+        dataframe = preprocess(dataframe, first_sample_date=first_sample_date)
+    else:
+        if first_sample_date:
+            raise NotImplementedError("First day not implemented without cleaning")
+
+        dataframe.columns = list(map(clean_col, dataframe.columns))
+        dataframe, _ = add_timestamp_to_df(dataframe)
 
     "NORMALIZE"
-    dataframe = normalize(dataframe)
-    # print("NORM END")
+    if do_normalize:
+        dataframe = normalize(dataframe)
+        # print("NORM END")
 
     "SEGMENTS"
     # print()
@@ -575,7 +589,7 @@ def preprocess_pipe_bars(
             workers=workers,
     )
     if len(segments) < 1 or len(columns) < 1:
-        print("Returning empty element from pipe: [], []")
+        print("Returning empty element from preprocess bars pipe: [], []")
         return [], []
 
     "MORE FEATURES"

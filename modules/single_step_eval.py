@@ -707,9 +707,6 @@ def start_stream_predict(
             # print(f"Missing predictions: {missing_predictions}")
 
             for i in range(missing_predictions):
-                # # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2]
-                # dataframe = loadead_df.iloc[last_segment_end:last_bar_ind + i + 2].copy() # UNIFORM
-
                 clipr = (-1 * missing_predictions + i + 1)
                 if clipr != 0:
                     sequences_3d = loaded_segment[:clipr].copy()  # BARS ONLY
@@ -812,23 +809,212 @@ def start_stream_predict(
             print("========")
 
 
+@measure_real_time_decorator
+def start_backtest(
+        input_filepath,
+
+        time_feats=16,
+        time_window=10,
+        float_feats=1,
+        out_size=3,
+
+        arch_num=101,
+        iteration=0,
+        nodes=1000,
+        reward_fnum=6,
+        lr="1e-05",
+        loss='mae',
+        batch=500,
+        discount='0.9',
+
+        # split_interval_s=1800,
+        # interval_s=10,
+        output_filepath=None,
+
+        preprocess_workers=8,
+):
+    model_keras = model_builder(
+            arch_num,
+            time_feats, time_window, float_feats, out_size, loss, nodes, lr,
+            iteration=iteration,
+    )
+    naming_ob = NamingClass(
+            arch_num, iteration=iteration,
+            time_feats=time_feats, time_window=time_window, float_feats=float_feats,
+            outsize=out_size,
+            node_size=nodes, reward_fnum=reward_fnum,
+            learning_rate=lr, loss=loss, batch=batch,
+            discount=discount,
+    )
+
+    weights_path = os.path.join(path_models, naming_ob.path, "weights.keras")
+    if os.path.isfile(weights_path):
+        print("Got weights.")
+        model_keras.load_weights(weights_path)
+    else:
+        print(f"Found no weights: {weights_path}")
+        raise ValueError(f"Model not found: {weights_path}")
+
+    # state = 0
+    # last_segment_end = 0
+    # last_size = os.path.getsize(input_filepath)
+    loaded_df_bars = pd.read_csv(input_filepath, nrows=5)
+    input_file_columns = list(loaded_df_bars.columns)
+    # curr_df_size = len(loaded_df_bars)
+    # was_ok = True
+
+    raw_segments, raw_columns = preprocess_pipe_bars(
+            input_filepath,
+            get_n_bars=time_window,
+            # clip_df_left=-1 * (missing_predictions + time_window * 3 + 5),
+            # clip_df_left=7000,
+            # clip_df_right=100,
+            include_timestamp=False,
+            workers=preprocess_workers,
+            minsamples_insegment=150,
+            do_normalize=False,
+            do_clean=False,
+            # include_t
+
+    )
+    print("Segments:")
+    # print(raw_segments)
+    # print()
+    # print(raw_segments[0])
+    # print()
+    # print(raw_segments[0][0])
+    # print()
+    # print(raw_segments[0][0][0])
+
+    if output_filepath is None:
+        output_filepath = os.path.join(
+                os.path.dirname(input_filepath),
+                f"backtest_{arch_num:>03}_{lr}_{loss}.txt"
+        )
+
+    "CREATE EMPTY"
+    with open(output_filepath, "wt", buffering=1) as fp:
+        pass
+
+    # print("READY FOR NEW SAMPLES")
+    # print(f"Model: {naming_ob.path}")
+    # print(f"Output file: {output_filepath}")
+
+    with open(output_filepath, "at", buffering=1) as fp:
+        # if not was_file:
+        # input_file_columns = loaded_df_bars.columns
+        ct = ",".join(cl for cl in input_file_columns)
+        fp.write(f"{ct}")
+        fp.write(f",action\n")
+
+        loaded_segments, columns = preprocess_pipe_bars(
+                input_filepath,
+                get_n_bars=time_window,
+                # clip_df_left=-1 * (missing_predictions + time_window * 3 + 5),
+                # clip_df_left=7000,
+                # clip_df_right=100,
+                include_timestamp=False,
+                workers=preprocess_workers,
+                minsamples_insegment=150,
+                # include_t
+
+        )
+        input_file_columns = [cl.strip().lower() for cl in input_file_columns]
+        raw_columns = [cl.strip().lower() for cl in raw_columns[0]]
+
+        # DF_MASK = [True if cl in normed_input_cols else False for cl in data_cols]
+        print("INPUT:")
+        print(input_file_columns)
+        print("RAW COLS:")
+        print(raw_columns)
+
+        print("DF INDEXES:")
+
+        # data_cols.append('date')
+        # data_cols.append('time')
+        # data_cols.append('volume')
+        # data_cols.append('price at minimum highlight')
+
+        DF_INDEXES = [raw_columns.index(cl) for cl in input_file_columns]
+        DF_LAST_COL = raw_columns.index(input_file_columns[-1]) + 1
+
+        print(DF_INDEXES)
+
+        print(
+                f"Starting backtest: got raw segments: {len(raw_segments)} and segments: {len(loaded_segments)}")
+
+        for seg_i, (rawseq3d, sequences_3d) in enumerate(zip(raw_segments, loaded_segments)):
+            state = 0
+            print(f"Segment: {seg_i}, Shape, Raw: {rawseq3d.shape}, norm: {sequences_3d.shape}")
+
+            assert len(rawseq3d) == len(
+                    sequences_3d), "Segments must be same size! rawseq3d != sequences_3d"
+
+            for sample in range(len(sequences_3d) - 1):
+                t0 = time.time()
+
+                cur_raw_df = rawseq3d[sample, -1, :DF_LAST_COL]
+
+                pred_state = np.array(state).reshape(1, 1, 1)
+                pred_arr = sequences_3d[sample][np.newaxis, :, :]
+                predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                act = np.argmax(predicted, axis=1)[0]
+                # print(f"Act: {act} from state: {state}")
+
+                ser = cur_raw_df
+                fp.write(','.join(map(str, ser)))
+                fp.write(f",{act}")
+                fp.write("\n")
+
+                prev_state = state
+                "Post state eval"
+                if act == 0:
+                    state = 1
+
+                elif act == 2:
+                    state = 0
+
+                loop_dur = time.time() - t0
+                print(
+                        seg_i, sample,
+                        f"Loop duration: {loop_dur:>5.2}s",
+                        f"Act: {act}, End state:{state}, was state: {prev_state}, "
+                        f"Predicted: {predicted}"
+                )
+
+            cur_raw_df = rawseq3d[-1, -1, :DF_LAST_COL]
+            ser = cur_raw_df
+            fp.write(','.join(map(str, ser)))
+            fp.write(f",-1")
+            fp.write("\n")
+        # was_ok = True
+
+    print("========")
+
+
 if __name__ == "__main__":
-    # input_filepath = os.path.join(path_data_folder, "test_updating.txt")
-    input_filepath = "/mnt/c/export/obv_600.txt"  # Machine file
+    # input_filepath = os.path.join(path_data_folder, "on_balance_volume.txt")  # local static
+    input_filepath = os.path.join(path_data_folder, "obv_600.txt")  # local static
+    # input_filepath = "/mnt/c/export/obv_600.txt"  # Machine file
     # input_filepath = os.path.join(path_data_folder, "test_updating.txt")  # Local file
 
     "MACHINE STARTS"
     # start_stream_predict(input_filepath, time_window=50, time_feats=17, nodes=1000 ,arch_num=101, loss='mae', lr='1e-06', output_filepath="/home/rafal/predict_101_mae_1e-06.txt", iteration=0,)
-    start_stream_predict(
-            input_filepath, time_window=50, time_feats=17, nodes=1000, arch_num=101,
-            loss='huber', lr='1e-05', output_filepath="/home/rafal/predict_101_huber_1e-05-it5.txt",
-            iteration=5,
-    )
+    # start_stream_predict(
+    #         input_filepath, time_window=50, time_feats=17, nodes=1000, arch_num=101,
+    #         loss='huber', lr='1e-05', output_filepath="/home/rafal/predict_101_huber_1e-05-it5.txt",
+    #         iteration=5,
+    # )
     # # start_stream_predict(input_filepath, arch_num=1, loss='huber', lr='1e-06', output_filepath="")
     # # start_stream_predict(input_filepath, arch_num=103, loss='mae', lr='1e-06', output_filepath="/home/rafal/predict_103_mae_1e-06.txt")
     # # start_stream_predict(input_filepath, arch_num=101, loss='mae', lr='1e-05', output_filepath="/home/rafal/predict_101_mae_1e-05.txt")
 
     "LOCAL STARTS"
+    start_backtest(
+            input_filepath, time_window=50, time_feats=17, nodes=1000, arch_num=101, batch=500,
+            loss='huber', lr='1e-05',  # output_filepath="/home/rafal/predict_101_huber_1e-05-it5.txt",
+            iteration=5,
+    )
     # start_stream_predict(input_filepath, time_window=50, time_feats=17, arch_num=101, nodes=1000,
     #                      batch=500, loss='mae', lr='1e-06', reward_fnum=6, iteration=3)
 
