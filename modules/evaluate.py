@@ -60,7 +60,7 @@ def eval_func(
 
         reward_f_num=3,
         game_n=3,
-        action_cost=0.001,
+        action_cost=0.0001,
         # discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
