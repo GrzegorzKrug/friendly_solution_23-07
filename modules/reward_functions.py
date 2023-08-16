@@ -354,6 +354,7 @@ def reward_fun_6(
         price_col_ind=0,
         # price_col_ind=0,
         # initial_cash=0,
+        action_cost=0.01
 ):
     """
         Allow buying only single asset.
@@ -365,7 +366,6 @@ def reward_fun_6(
     # print(f"Price now:", price_now)
     "Pos = Rising, Negative = Decreasing"
     "Current price - Last price"
-    action_cost = 0.01
     price_change = (env_arr_2d[-1, price_col_ind] - env_arr_2d[- 2, price_col_ind])
     price_change *= 10000  # 10k : reward~  +=0.056
     # price_change *= 15000  # 15k : reward~  +=0.085
@@ -377,7 +377,7 @@ def reward_fun_6(
         asset_val = price * float(discrete_stock)
         if action == 0:
             "BUY"
-            return BASE_PENALTY + gain_at_end_of_day - asset_val, True
+            return BASE_PENALTY + gain_at_end_of_day - asset_val - action_cost, True
 
         elif action == 1:
             "PASS"
@@ -388,14 +388,14 @@ def reward_fun_6(
             if discrete_stock <= 0:
                 return INVALID_MOVE + gain_at_end_of_day, False
             else:
-                return gain_at_end_of_day + asset_val, True
+                return gain_at_end_of_day + asset_val - action_cost, True
         else:
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
     else:
         if action == 0:
             "BUY"
             if discrete_stock == 0:
-                return -price-action_cost, True
+                return -price - action_cost, True
             else:
                 return INVALID_MOVE, False
 
@@ -413,7 +413,7 @@ def reward_fun_6(
             if discrete_stock <= 0:
                 return INVALID_MOVE, False
 
-            return price-action_cost, True
+            return price - action_cost, True
         else:
             raise ValueError(f"Invalid action: {action}, type:{type(action)}")
 

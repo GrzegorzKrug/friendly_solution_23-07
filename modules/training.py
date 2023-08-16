@@ -182,17 +182,17 @@ def train_qmodel(
         model_keras: keras.Model, segmentslist_alldata3d,
         price_col_ind,
         naming_ob: NamingClass,
-        agents_n=20,
+        agents_n=30,
         games_n=1000,
         game_duration=3600,
 
         allow_train=True, model_memory: ModelMemory = None,
 
         # Optional
-        max_eps=0.5, override_eps=None,
-        remember_fresh_fraction=0.2,
-        train_from_oldmem_fraction=0.4,
-        old_memory_size=70_000,
+        max_eps=0.3, override_eps=None,
+        remember_fresh_fraction=0.3,
+        train_from_oldmem_fraction=0.6,
+        old_memory_size=80_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -952,5 +952,6 @@ if __name__ == "__main__":
             time.sleep(10)
             ret = gc.collect()
             print(f"Loop collected: {ret}")
+            tf.keras.backend.clear_session()
 
     print("Script end....")
