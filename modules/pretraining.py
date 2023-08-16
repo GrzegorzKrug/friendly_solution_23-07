@@ -158,7 +158,7 @@ def pretrain_qmodel(
         max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
-        epochs=5,
+        epochs=10,
         batch_train=25000,
 
 ):
