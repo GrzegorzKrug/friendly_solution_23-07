@@ -508,7 +508,7 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
 def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
     for batch in [500, 300]:
-        for lr in [1e-5]:
+        for lr in [1e-4]:
             for arch_num in [101]:
                 for dc in [0.9]:
                     for iteration in [4, 5, 0, 6, 7]:
