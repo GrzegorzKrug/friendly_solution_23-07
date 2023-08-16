@@ -461,6 +461,9 @@ def train_qmodel(
                 for tri_i in range(train_number):
                     loss_file.write(f"{i_train_sess},{fresh_loss},-1\n")
 
+            ret = gc.collect()
+            print(f"End ses collect: {ret}")
+
         "RESOLVE END SCORE"
 
         endtime = time.time()
@@ -903,7 +906,7 @@ if __name__ == "__main__":
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
     trainsegments_ofsequences3d = trainsegments_ofsequences3d[:40]
 
-    with ProcessPoolExecutor(max_workers=4) as executor:
+    with ProcessPoolExecutor(max_workers=3) as executor:
         process_list = []
         for counter, data in enumerate(gen_it23):
             MainLogger.info(f"Adding process with: {data}")
