@@ -263,7 +263,7 @@ def eval_func(
             if actions[0] == 0:
                 score = last_score - action_cost
             elif actions[0] == 2:
-                score == new_hidden_states[0][0]
+                score = new_hidden_states[0][0]
 
             last_score = score
 
