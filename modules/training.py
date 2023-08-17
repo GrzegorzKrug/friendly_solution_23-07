@@ -190,9 +190,9 @@ def train_qmodel(
 
         # Optional
         max_eps=0.3, override_eps=None,
-        remember_fresh_fraction=0.3,
-        train_from_oldmem_fraction=0.6,
-        old_memory_size=80_000,
+        remember_fresh_fraction=0.5,
+        train_from_oldmem_fraction=0.9,
+        old_memory_size=50_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -480,6 +480,9 @@ def train_qmodel(
         time_file.write(f"{duration}\n")
         # DEBUG_LOGGER.debug(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
         # RUN_LOGGER.info(f"Mean loop time = {np.mean(LOOP_TIMES) / 60:4.4f} m")
+
+        gc.collect()
+        tf.keras.backend.clear_session()
 
     if allow_train:
         model_keras.save_weights(path_this_model_folder + "weights.keras")

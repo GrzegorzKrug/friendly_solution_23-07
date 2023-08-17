@@ -354,7 +354,7 @@ def reward_fun_6(
         price_col_ind=0,
         # price_col_ind=0,
         # initial_cash=0,
-        action_cost=0.01
+        action_cost=0.1
 ):
     """
         Allow buying only single asset.
@@ -367,9 +367,10 @@ def reward_fun_6(
     "Pos = Rising, Negative = Decreasing"
     "Current price - Last price"
     price_change = (env_arr_2d[-1, price_col_ind] - env_arr_2d[- 2, price_col_ind])
-    price_change *= 10000  # 10k : reward~  +=0.056
+    # price_change *= 10000  # 10k : reward~  +=0.056
     # price_change *= 15000  # 15k : reward~  +=0.085
-    price_change = np.clip(price_change, -0.35, 0.35)
+    price_change *= 25000  # 15k : reward~  +=0.085
+    price_change = np.clip(price_change, -0.2, 0.2)
 
     if done:
         end_cash = cash
