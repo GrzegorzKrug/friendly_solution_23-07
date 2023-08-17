@@ -907,57 +907,103 @@ if __name__ == "__main__":
     # manager.list(trainsegments_ofsequences3d)
     # print(manager)
     # manager.list([mpc.Array(segm) for segm in trainsegments_ofsequences3d])
+
     trainsegments_ofsequences3d = trainsegments_ofsequences3d[:40]
 
-    with ProcessPoolExecutor(max_workers=3) as executor:
-        process_list = []
-        for counter, data in enumerate(gen_it23):
-            MainLogger.info(f"Adding process with: {data}")
-            games_n = 100
-            game_duration = 500
-            # if counter >= 2:
-            #     break
-            # elif counter <= 11:
-            #     train_duration = 280
-            # else:
-            #     continue
+    "CONCURENT FUTURES"
+    # with ProcessPoolExecutor(max_workers=3) as executor:
+    #     process_list = []
+    #     for counter, data in enumerate(gen_it23):
+    #         MainLogger.info(f"Adding process with: {data}")
+    #         games_n = 100
+    #         game_duration = 500
+    #         # if counter >= 3:
+    #         #     break
+    #         # elif counter <= 11:
+    #         #     train_duration = 280
+    #         # else:
+    #         #     continue
+    #
+    #         proc = executor.submit(
+    #                 single_model_training_function, *data, trainsegments_ofsequences3d, price_ind,
+    #                 games_n, game_duration,
+    #                 MainLogger
+    #         )
+    #         process_list.append(proc)
+    #         print(f"Added process: {counter}")
+    #
+    #     while True:
+    #         "Deleting loop"
+    #
+    #         to_del = set()
+    #
+    #         for proc in process_list:
+    #             if proc.done():
+    #                 to_del.add(proc)
+    #
+    #         for val in to_del:
+    #             MainLogger.info(f"Removing finished process: {val}")
+    #             process_list.remove(val)
+    #             print(val.exception())
+    #             # print(dir(val))
+    #
+    #         if len(process_list) <= 0:
+    #             break
+    #
+    #         time.sleep(10)
+    #         ret = gc.collect()
+    #         print(f"Loop collected: {ret}")
+    #         tf.keras.backend.clear_session()
 
-            proc = executor.submit(
-                    single_model_training_function, *data, trainsegments_ofsequences3d, price_ind,
-                    games_n, game_duration,
-                    MainLogger
-            )
-            process_list.append(proc)
-            print(f"Added process: {counter}")
+    "MPC MANAGER"
+    max_train_workers = 4
+    process_list = []
+    for counter, data in enumerate(gen_it23):
+        games_n = 100
+        game_duration = 500
+        proc = mpc.Process(target=single_model_training_function,
+                           args=(*data, trainsegments_ofsequences3d, price_ind,
+                                 games_n, game_duration, MainLogger), )
+        process_list.append(proc)
+        proc.start()
+        MainLogger.info(f"Starting process:{counter} {data}")
 
-            # while True
-        # proc.e
-        #     results.append(proc)
-        # print("Waiting:")
-        # result = concurrent.futures.wait(process_list)
-        # print("Waiting finished.")
-
-        while True:
-            "Deleting loop"
-
-            to_del = set()
-
-            for proc in process_list:
-                if proc.done():
-                    to_del.add(proc)
-
-            for val in to_del:
-                MainLogger.info(f"Removing finished process: {val}")
-                process_list.remove(val)
-                print(val.exception())
-                # print(dir(val))
-
-            if len(process_list) <= 0:
-                break
-
+        while max_train_workers == len(process_list):
+            MainLogger.debug(f"Waiting with: {len(process_list)} workers.")
             time.sleep(10)
             ret = gc.collect()
-            print(f"Loop collected: {ret}")
+            MainLogger.debug(f"Wait collect: {ret}")
             tf.keras.backend.clear_session()
+
+            # process_list[0]
+            # print(f"Code: {proc.exitcode}")
+            for pi, proc in enumerate(process_list):
+                if proc.exitcode is not None:
+                    MainLogger.info(f"Proc finished with code: {proc.exitcode}")
+                    proc.join()
+
+                    # process_list = []
+                    process_list.pop(pi)
+                    break
+
+        # if counter > 10:
+        #     break
+
+    while len(process_list) > 0:
+        MainLogger.debug(f"Last waiting: {len(process_list)} workers")
+        time.sleep(10)
+        ret = gc.collect()
+        MainLogger.debug(f"Last Wait collect: {ret}")
+
+        # process_list[0]
+        # print(f"Code: {proc.exitcode}")
+        for pi, proc in enumerate(process_list):
+            if proc.exitcode is not None:
+                MainLogger.info(f"Proc finished with code: {proc.exitcode}")
+                proc.join()
+
+                # process_list = []
+                process_list.pop(pi)
+                break
 
     print("Script end....")
