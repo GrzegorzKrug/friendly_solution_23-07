@@ -153,13 +153,13 @@ def eval_func(
     #     print(f"Staring evaluation, games at max size: {game_n}")
     # else:
     #     print(f"Staring evaluation, games: {game_n} (of {len(segments_oftraindata)} segments)")
+    GAMES_LIST = []
 
     for i_eval_sess in range(game_n):
         segm_i = np.linspace(0, len(segments_oftraindata) - 1, game_n).round().astype(int)[i_eval_sess]
         # print(f"Games: {game_n} at: {np.linspace(0, len(segments_oftraindata) - 1, game_n).round()}")
 
         ordered_list_of3dsequences = segments_oftraindata[segm_i]
-
         if timestamp_col is not None:
             time_sequences = ordered_list_of3dsequences[:, -1, timestamp_col]
             ordered_list_of3dsequences = np.delete(ordered_list_of3dsequences, timestamp_col, axis=2)
@@ -197,67 +197,127 @@ def eval_func(
 
             # print(f"Partial eval: {ses_start}: {ses_end} ({len(ordered_list_of3dsequences)})")
 
+        sample_offset = ses_start
+        ses_end = ses_end - sample_offset
         print(
                 f"Eval sess: {i_eval_sess} selected segment: {segm_i}, "
                 f"random: {random_start}, full: {full_eval}, "
                 f"start: {ses_start}, end: {ses_end}, size: {len(ordered_list_of3dsequences)}")
-        agents_discrete_states, hidden_states = initialize_agents(AGENTS_N)
+        GAMES_LIST.append(
+                dict(
+                        active=True, sequences_ref=ordered_list_of3dsequences,
+                        sample_offset=sample_offset, ses_end=ses_end,
+                        time_sequences=time_sequences,
+                        # segm_i=segm_i,
+                )
+        )
+    agents_discrete_states, hidden_states = initialize_agents(game_n)
 
+    plot_arr_labels = [
+            'i_sample',
+            'Cash', 'Cargo', 'Action', 'Gain',  # 1,2,3,4
+            'Q1', 'Q2', 'Q3', 'price',  # 5,6,7,8
+            "timestamp_s"  # 9
+    ]
+
+    # best_transactions = []
+    # worst_transations = []
+    # logged_actions_games = []
+    # how_many_actions_games = []
+    # how_many_valid_games = []
+
+    for n in range(game_n):  # TRAIN
         "Actions:"
         "0, 1, 2"
         "Buy, Pass, Sell"
         # starttime = time.time()
 
-        how_many_actions = 0
-        how_many_valid = 0
+        # logged_actions_games.append([])
+        GAMES_LIST[n]['logged_actions'] = []
+        GAMES_LIST[n]['how_many_actions'] = 0
+        GAMES_LIST[n]['how_many_valid'] = 0
+        GAMES_LIST[n]['best_transaction'] = 0
+        GAMES_LIST[n]['worst_transaction'] = 0
+        GAMES_LIST[n]['plot_array'] = np.zeros((0, len(plot_arr_labels)), dtype=float)
 
-        plot_arr_labels = [
-                'i_sample',
-                'Cash', 'Cargo', 'Action', 'Gain',  # 1,2,3,4
-                'Q1', 'Q2', 'Q3', 'price',  # 5,6,7,8
-                "timestamp_s"  # 9
-        ]
-        plot_array = np.zeros((0, len(plot_arr_labels)), dtype=float)
+        ordered_list_of3dsequences = GAMES_LIST[n]['sequences_ref']
+        ses_start = GAMES_LIST[n]['sample_offset']
 
-        logged_actions = []
         last_score = ordered_list_of3dsequences[ses_start, 0, price_col_ind]
-        score = last_score
-        hidden_states[0][0] = last_score
-        best_transaction = 0
-        worst_transation = 0
+        GAMES_LIST[n]['last_score'] = last_score
+        GAMES_LIST[n]['score'] = last_score
 
-        for i_sample in range(ses_start, ses_end):  # Never in done state
+        hidden_states[n][0] = last_score
+        # score = last_score
 
-            timesegment_2d = ordered_list_of3dsequences[i_sample, :]
-            timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (AGENTS_N, 1, 1))
+    for i_step in range(session_size):  # Never in done state
+        timesegment_stacked = None
 
-            # if not i_sample % WALK_INTERVAL_DEBUG:
-            #     print(f"Walking sample: {i_sample}")
-            # timestamp_s = timesegment_2d[-1, timestamp_col]
+        for gamei in range(game_n):
+            gamedict = GAMES_LIST[gamei]
 
-            q_vals = model_keras.predict(
-                    [timesegment_stacked, agents_discrete_states],
-                    verbose=False
-            )
+            # timesegment_stacked = np.tile(timesegment_2d[np.newaxis, :, :], (AGENTS_N, 1, 1))
+            timesegment_3d = gamedict['sequences_ref']
+            # if gamedict['active']
+            if i_step >= gamedict['ses_end']:
+                gamedict['active'] = False
+
+            if gamedict['active']:
+                i_sample = gamedict['sample_offset'] + i_step
+            else:
+                i_sample = 0
+
+            timesegment_2d_tile = timesegment_3d[i_sample][np.newaxis, :, :]
+            # print(timesegment_2d)
+            if timesegment_stacked is None:
+                timesegment_stacked = timesegment_2d_tile
+                # print(f"FIRST shape: {timesegment_stacked.shape}")
+            else:
+                timesegment_stacked = np.concatenate([timesegment_stacked, timesegment_2d_tile], axis=0)
+                # print(f"NEXT shape: {timesegment_stacked.shape}")
+
+            cur_step_price = timesegment_3d[i_sample, -1, price_col_ind]
+            gamedict['cur_step_price'] = cur_step_price
+
+        QVALS = model_keras.predict(
+                [timesegment_stacked, agents_discrete_states],
+                verbose=False
+        )
+
+        for gamei in range(game_n):
+            gamedict = GAMES_LIST[gamei]
+
+            if not gamedict['active']:
+                continue
+
+            q_vals = QVALS[gamei, :][np.newaxis]
             actions = np.argmax(q_vals, axis=-1)
+            # print(actions)
 
             if actions[0] in [0, 2]:
-                how_many_actions += 1
+                gamedict['how_many_actions'] += 1
+                # how_many_actions += 1
 
             if actions[0] == 0 and hidden_states[0, 2] == 0:
                 "Buy when 0"
-                how_many_valid += 1
+                # how_many_valid += 1
+                gamedict['how_many_valid'] += 1
+
             elif actions[0] == 2 and hidden_states[0, 2] == 1:
                 "Sell when 1"
-                how_many_valid += 1
+                # how_many_valid += 1
+                gamedict['how_many_valid'] += 1
 
-            cur_step_price = ordered_list_of3dsequences[i_sample, -1, price_col_ind]
-            # print(datalist_2dsequences_ordered_train.shape)
-            # print(cur_step_price, type(cur_step_price))
+            cur_step_price = gamedict['cur_step_price']
+            last_score = gamedict['last_score']
+            score = gamedict['score']
 
             "Dont train"
-            new_states, new_hidden_states = resolve_actions_func(
-                    cur_step_price, agents_discrete_states, hidden_states, actions,
+            agent_discrete_slice = agents_discrete_states[gamei][np.newaxis,]
+            hidden_state_slice = hidden_states[gamei][np.newaxis,]
+
+            new_discstate_slice, new_hidden_state_slice = resolve_actions_func(
+                    cur_step_price, agent_discrete_slice, hidden_state_slice, actions,
                     action_cost=action_cost,
             )
 
@@ -265,22 +325,44 @@ def eval_func(
             if actions[0] == 0:
                 score = last_score - action_cost
             elif actions[0] == 2:
-                score = new_hidden_states[0][0]
+                score = new_hidden_state_slice[0][0]
 
                 # transaction = score - last_score
-                transaction = cur_step_price - new_hidden_states[0][3] - action_cost  # Price - buy price
+                transaction = cur_step_price \
+                              - new_hidden_state_slice[0][3] \
+                              - action_cost  # Price - buy price
+                transaction = 0
+
+                best_transaction = gamedict['best_transaction']
+                worst_transaction = gamedict['worst_transaction']
 
                 if transaction > best_transaction:
                     best_transaction = transaction
-                elif transaction < worst_transation:
-                    worst_transation = transaction
+                elif transaction < worst_transaction:
+                    worst_transaction = transaction
+
+                gamedict['worst_transaction'] = worst_transaction
+                gamedict['best_transaction'] = best_transaction
+
+            agents_discrete_states[gamei] = new_discstate_slice[0]
+            hidden_states[gamei] = new_hidden_state_slice[0]
 
             last_score = score
+            gamedict['score'] = score
+            gamedict['last_score'] = last_score
+
+            time_sequences = gamedict['time_sequences']
+
+            if gamedict['active']:
+                i_sample = gamedict['sample_offset'] + i_step
+            else:
+                i_sample = 0
 
             if time_sequences is not None:
                 sample_time = time_sequences[i_sample]
                 # print(f"Adding action to filesaver: {actions[0]}")
                 if actions[0] != 1:
+                    logged_actions = gamedict['logged_actions']
                     logged_actions.append((sample_time, actions[0], cur_step_price))
             else:
                 sample_time = None
@@ -292,17 +374,33 @@ def eval_func(
             ]
 
             plot_vec = np.array(plot_vec).reshape(1, -1)
+            plot_array = gamedict['plot_array']
 
             # print(plot_array.shape, plot_vec.shape)
             plot_array = np.concatenate([plot_array, plot_vec], axis=0)
+            gamedict['plot_array'] = plot_array
 
-            agents_discrete_states = new_states
-            hidden_states = new_hidden_states
+        # agents_discrete_states = new_states
+        # hidden_states = new_hidden_states
 
         # tend_walking = time.time()
         # print(f"End cargo: {hidden_states[0, 2]} and price: {cur_step_price}")
-        end_gain = hidden_states[0, 0] - hidden_states[0, 1] + hidden_states[0, 2] * (
-                cur_step_price - action_cost)
+
+    for gamei in range(game_n):
+        gamedict = GAMES_LIST[gamei]
+        cur_step_price = gamedict['cur_step_price']
+        plot_array = gamedict['plot_array']
+        how_many_actions = gamedict['how_many_actions']
+        how_many_valid = gamedict['how_many_valid']
+
+        best_transaction = gamedict['best_transaction']
+        worst_transaction = gamedict['worst_transaction']
+        time_sequences = gamedict['time_sequences']
+        logged_actions = gamedict["logged_actions"]
+        ses_start = gamedict['sample_offset']
+
+        end_gain = hidden_states[gamei, 0] - hidden_states[gamei, 1] + \
+                   hidden_states[gamei, 2] * (cur_step_price - action_cost)
 
         plt.subplots(3, 1, figsize=(20, 10), dpi=200, height_ratios=[3, 1, 3])
         # gain = hidden_states[:, 0] - hidden_states[:, 1]
@@ -325,7 +423,7 @@ def eval_func(
         # print()
         eval_values.append((
                 how_many_actions, how_many_valid, np.round(end_gain, 5),
-                best_transaction, worst_transation
+                best_transaction, worst_transaction
         ))
         plt.plot(xtmps, plot_array[:, 4], label="Score", color='green', alpha=0.4)
         plt.plot(xtmps, plot_array[:, 8], label="Price", color=colors[0], alpha=0.6, linewidth=2)
@@ -349,14 +447,14 @@ def eval_func(
         plt.title("Q vals")
         plt.legend()
 
-        plt.suptitle(naming_ob.path + f", Game: {i_eval_sess}")
+        plt.suptitle(naming_ob.path + f", Game: {gamei}")
         plt.xlabel("sample number")
         plt.tight_layout()
-        plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{i_eval_sess}.png"))
+        plt.savefig(os.path.join(path_this_model_folder, "evals", f"eval-{name}-{gamei}.png"))
         plt.close()
-        print(f"Saved fig: {naming_ob.path} - eval - {name} - {i_eval_sess}")
+        print(f"Saved fig: {naming_ob.path} - eval - {name} - {gamei}")
 
-        with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{i_eval_sess}.csv'),
+        with open(os.path.join(path_this_model_folder, 'evals', f'eval-{name}-{gamei}.csv'),
                   "wt")as fp:
             fp.write(f"#Game start: {time_sequences[ses_start]}s\n")
             fp.write("timestamp_s,action,price\n")
@@ -365,7 +463,7 @@ def eval_func(
                 for a, b, c in logged_actions:
                     fp.write(f"{a},{b},{c}\n")
 
-                print(f"Saved actions to: eval-{name}-{i_eval_sess}.csv")
+                print(f"Saved actions to: eval-{name}-{gamei}.csv")
             else:
                 print("Not save actions")
 
