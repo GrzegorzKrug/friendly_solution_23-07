@@ -192,9 +192,9 @@ def train_qmodel(
 
         # Optional
         max_eps=0.3, override_eps=None,
-        remember_fresh_fraction=0.5,
-        train_from_oldmem_fraction=0.9,
-        old_memory_size=50_000,
+        remember_fresh_fraction=0.3,
+        train_from_oldmem_fraction=0.35,
+        old_memory_size=60_000,
         # refresh_n_times=3,
         # local_minima=None, local_maxima=None,
         # local_minima_soft=None, local_maxima_soft=None,
@@ -202,7 +202,7 @@ def train_qmodel(
         discount=0.9,
         # director_loc=None, name=None, timeout=None,
         # save_qval_dist=False,
-        extra_training_from_oldmemory=3,
+        extra_training_from_oldmemory=5,
 
         # PARAMS ==============
         # time_window_size=10,
@@ -602,7 +602,8 @@ def deep_q_reinforce_fresh(
         "Reinforce"
         time_pretrain = time.time()
         history_ob = mod.fit(
-                [envs_states_arr, states], new_qvals, shuffle=True,
+                [envs_states_arr, states], new_qvals,
+                # shuffle=True,
                 batch_size=mini_batchsize,
                 verbose=False,
                 callbacks=ClearMemory(),
@@ -731,7 +732,8 @@ def deep_q_reinforce_oldmem(
         "Reinforce"
         time_pretrain = time.time()
         history_ob = mod.fit(
-                [envs_states_arr, states], new_qvals, shuffle=True,
+                [envs_states_arr, states], new_qvals,
+                # shuffle=True,
                 batch_size=mini_batchsize,
                 verbose=False,
                 callbacks=ClearMemory(),

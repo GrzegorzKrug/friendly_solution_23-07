@@ -993,6 +993,10 @@ def start_backtest(
 
 
 if __name__ == "__main__":
+    gpus = tf.config.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+
     # input_filepath = os.path.join(path_data_folder, "on_balance_volume.txt")  # local static
     input_filepath = os.path.join(path_data_folder, "obv_600.txt")  # local static
     # input_filepath = "/mnt/c/export/obv_600.txt"  # Machine file
