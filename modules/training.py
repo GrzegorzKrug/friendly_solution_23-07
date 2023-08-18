@@ -36,6 +36,8 @@ import sys
 import os
 import pickle
 
+from tensorflow.keras.callbacks import Callback
+
 
 # session_dataframe.loc[
 #     len(session_dataframe)] = session_eps, i_train_sess, ses_start, ses_end, g
@@ -599,9 +601,12 @@ def deep_q_reinforce_fresh(
 
         "Reinforce"
         time_pretrain = time.time()
-        history_ob = mod.fit([envs_states_arr, states], new_qvals, shuffle=True,
-                             batch_size=mini_batchsize,
-                             verbose=False)
+        history_ob = mod.fit(
+                [envs_states_arr, states], new_qvals, shuffle=True,
+                batch_size=mini_batchsize,
+                verbose=False,
+                callbacks=ClearMemory(),
+        )
 
         timeend = time.time()
         RUN_LOGGER.debug(
@@ -611,6 +616,12 @@ def deep_q_reinforce_fresh(
     timeend = time.time()
     RUN_LOGGER.info(f"Full (fresh) training took : {timeend - time_f_start :>6.3f}s")
     return np.mean(losses)
+
+
+class ClearMemory(Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        gc.collect()
+        tf.keras.backend.clear_session()
 
 
 def sub_deepq_func(actions, discount, dones, curr_qvals, max_future_argq, rewards):
@@ -719,9 +730,12 @@ def deep_q_reinforce_oldmem(
 
         "Reinforce"
         time_pretrain = time.time()
-        history_ob = mod.fit([envs_states_arr, states], new_qvals, shuffle=True,
-                             batch_size=mini_batchsize,
-                             verbose=False)
+        history_ob = mod.fit(
+                [envs_states_arr, states], new_qvals, shuffle=True,
+                batch_size=mini_batchsize,
+                verbose=False,
+                callbacks=ClearMemory(),
+        )
 
         timeend = time.time()
         RUN_LOGGER.debug(
@@ -829,10 +843,8 @@ def single_model_training_function(
         RUN_LOGGER.error(exc, exc_info=True)
 
     "Clear memory?"
-
-    "Clear memory?"
-    del model
     tf.keras.backend.clear_session()
+    del model
     del train_sequences
     print("Cleared memory... ?")
 
