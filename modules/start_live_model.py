@@ -18,6 +18,6 @@ if __name__ == "__main__":
     "MACHINE STARTS"
     start_stream_predict(
             input_filepath, time_window=50, time_feats=17, nodes=1000, arch_num=101,
-            loss='huber', lr='1e-05', output_filepath="/home/rafal/predict_101_huber_1e-05-it5.txt",
+            loss='huber', lr='1e-05', output_filepath="/home/rafal/live_101_huber_1e-05-it5.txt",
             iteration=5,
     )
