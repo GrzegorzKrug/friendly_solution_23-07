@@ -211,18 +211,20 @@ def eval_func(
         how_many_actions = 0
         how_many_valid = 0
 
-        labels = [
+        plot_arr_labels = [
                 'i_sample',
                 'Cash', 'Cargo', 'Action', 'Gain',  # 1,2,3,4
                 'Q1', 'Q2', 'Q3', 'price',  # 5,6,7,8
                 "timestamp_s"  # 9
         ]
-        plot_array = np.zeros((0, len(labels)), dtype=float)
+        plot_array = np.zeros((0, len(plot_arr_labels)), dtype=float)
 
         logged_actions = []
         last_score = ordered_list_of3dsequences[ses_start, 0, price_col_ind]
         score = last_score
         hidden_states[0][0] = last_score
+        best_transaction = 0
+        worst_transation = 0
 
         for i_sample in range(ses_start, ses_end):  # Never in done state
 
@@ -231,7 +233,7 @@ def eval_func(
 
             # if not i_sample % WALK_INTERVAL_DEBUG:
             #     print(f"Walking sample: {i_sample}")
-            timestamp_s = timesegment_2d[-1, timestamp_col]
+            # timestamp_s = timesegment_2d[-1, timestamp_col]
 
             q_vals = model_keras.predict(
                     [timesegment_stacked, agents_discrete_states],
@@ -264,6 +266,14 @@ def eval_func(
                 score = last_score - action_cost
             elif actions[0] == 2:
                 score = new_hidden_states[0][0]
+
+                # transaction = score - last_score
+                transaction = cur_step_price - new_hidden_states[0][3] - action_cost  # Price - buy price
+
+                if transaction > best_transaction:
+                    best_transaction = transaction
+                elif transaction < worst_transation:
+                    worst_transation = transaction
 
             last_score = score
 
@@ -313,14 +323,17 @@ def eval_func(
             plt.scatter(xa, ya, label=f"Action: {lb}", s=s)
 
         # print()
-        eval_values.append((how_many_actions, how_many_valid, np.round(end_gain, 5)))
+        eval_values.append((
+                how_many_actions, how_many_valid, np.round(end_gain, 5),
+                best_transaction, worst_transation
+        ))
         plt.plot(xtmps, plot_array[:, 4], label="Score", color='green', alpha=0.4)
         plt.plot(xtmps, plot_array[:, 8], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")
         plt.legend()
 
         plt.subplot(3, 1, 2)
-        for i, lb in enumerate(labels[1:4], 1):
+        for i, lb in enumerate(plot_arr_labels[1:4], 1):
             if i == 3:
                 plt.plot(x, plot_array[:, i] + 1, label=lb, color=colors[i], alpha=0.8, linewidth=2)
             else:
@@ -329,7 +342,7 @@ def eval_func(
         plt.legend()
 
         plt.subplot(3, 1, 3)
-        for i, lb in enumerate(labels[5:8], 5):
+        for i, lb in enumerate(plot_arr_labels[5:8], 5):
             lb = {5: "Q1:Buy", 6: "Q2:Pass", 7: "Q3:Sell"}[i]
             plt.plot(x, plot_array[:, i], label=lb, color=colors[i], alpha=0.8, linewidth=2)
 
@@ -514,8 +527,9 @@ def evaluate_pipeline(
             print(f"Saved evals to: evals-{name}-{dt_str}.txt")
 
         except Exception as err:
+            print("ERROR \n" * 2)
             print(err)
-            print(f"Results: {results}")
+            print(f"Results with error: {results}")
 
 
 if __name__ == "__main__":

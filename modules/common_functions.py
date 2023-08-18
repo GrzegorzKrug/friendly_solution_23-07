@@ -236,7 +236,7 @@ def load_data_split(path, train_split=0.65, ):
     return df_train, df_test
 
 
-def unpack_evals_to_table(res_list, add_summary=True):
+def unpack_evals_to_table(res_list, add_summary=True, round_prec=5):
     """
 
     Args:
@@ -248,7 +248,10 @@ def unpack_evals_to_table(res_list, add_summary=True):
     """
     table = prettytable.PrettyTable()
     if add_summary:
-        columns = ["Sum gain", "Best gain", "% valids", "Sum valids", "mean valids", ]
+        columns = [
+                "Sum gain", "Best gain", "% valids", "Sum valids",
+                "Best Trade", "Worst Trade"
+        ]
     else:
         columns = []
 
@@ -258,7 +261,7 @@ def unpack_evals_to_table(res_list, add_summary=True):
     # print(runs_n)
 
     col_run = [
-            (f"{r}:acts", f"{r}:valid", f"{r}:gain")
+            (f"{r}:acts", f"{r}:valid", f"{r}:gain", f"{r}:Best Trade", f"{r}:Worst Trade")
             for r in range(runs_n)
     ]
     for cl in col_run:
@@ -277,6 +280,8 @@ def unpack_evals_to_table(res_list, add_summary=True):
             continue
         name, runs = args
         row = []
+        best_trade = 0
+        worst_trade = 0
         # perc_valids_arr = []
         for val in runs:
             # print(f"val: {val}")
@@ -286,7 +291,16 @@ def unpack_evals_to_table(res_list, add_summary=True):
                 total_gain += val[2]
                 # perc_valids_arr.append(val[2] / val[1])
 
-            row = row + [val[0], val[1], np.round(val[2], 5)]
+            best_trade_x = val[3]
+            if best_trade_x > best_trade:
+                best_trade = best_trade_x
+            worst_trade_x = val[4]
+            if worst_trade_x < worst_trade:
+                worst_trade = worst_trade_x
+
+            cur_run = [val[0], val[1], np.round(val[2], round_prec), np.round(val[3], round_prec),
+                       np.round(val[4], round_prec)]
+            row = row + cur_run
 
         # print(row)
         vals_arr = np.array(runs)
@@ -294,16 +308,17 @@ def unpack_evals_to_table(res_list, add_summary=True):
 
         # best_gain_tuple = max(runs, key=lambda x: x[2])
         best_gain = vals_arr[:, 2].max()
-        mean_perc_valid = (vals_arr[:, 1] / vals_arr[:, 0]).mean().round(2)
+        # mean_perc_valid = (vals_arr[:, 1] / vals_arr[:, 0]).mean().round(2)
         perc_valid = vals_arr[:, :2].sum(axis=0)
         perc_valid = np.round(perc_valid[1] / perc_valid[0] * 100, 1)
 
         if add_summary:
             all_rows.append((
                     name,
-                    np.round(total_gain, 5), best_gain,
+                    np.round(total_gain, round_prec), best_gain,
                     perc_valid, total_valid_acts,
-                    mean_perc_valid,
+                    np.round(best_trade, round_prec), np.round(worst_trade, round_prec),
+                    # mean_perc_valid,
                     *row
             ))
         else:

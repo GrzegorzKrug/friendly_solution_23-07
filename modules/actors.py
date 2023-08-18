@@ -110,7 +110,7 @@ def resolve_actions_singlebuy(
             "SELL"
 
             new_disc_state[ag_i] = 0  # 0 Assets in state
-            new_hidden_state[ag_i][3] = 0  # Buy price 0
+            # new_hidden_state[ag_i][3] = 0  # Buy price 0
 
             if new_hidden_state[ag_i][2] <= 0:
                 "Can not sell"
