@@ -889,6 +889,7 @@ if __name__ == "__main__":
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
             workers=10,
+            normalize_timediff=True,
             minsamples_insegment=300,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )

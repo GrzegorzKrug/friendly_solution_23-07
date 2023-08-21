@@ -177,7 +177,7 @@ def pretrain_qmodel(
         RUN_LOGGER.warning(f"Not loading model - {naming_ob.path}.")
 
     time_memory, float_memory, action_memory = [], [], []
-    action_price_cost = 0.3
+    action_price_cost = 0.1
     minibatch_size = int(naming_ob.batch)
 
     for segment_i, segment in enumerate(segmentslist_alldata3d):
@@ -194,16 +194,18 @@ def pretrain_qmodel(
                 break
 
             state = segment[sample_i]
-            price_samp = segment[sample_i, -1, price_col_ind]
+            price_samp = segment[sample_i, -1, price_col_ind] / 2
             price_fut = segment[sample_i + 1, -1, price_col_ind]
-            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5)
+            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 4
             # print(f"PRICE CHANGE: {price_change:>5.5f}: {price_samp:>5.7f}, {price_fut:>5.7f}")
 
             for hid_stat in [0, 1]:
                 if hid_stat == 0:
-                    qvs = [price_samp - action_price_cost, price_change, -10]
+                    "NO CARGO"
+                    qvs = [price_samp - action_price_cost, -price_change, -10]
                 else:
-                    qvs = [-10, -price_change, price_samp - action_price_cost]
+                    "CARGO"
+                    qvs = [-10, price_change, price_samp - action_price_cost]
 
                 time_memory.append(state)
                 float_memory.append(hid_stat)
@@ -274,7 +276,8 @@ def save_csv_locked(df, path):
 def single_model_pretraining_function(
         counter, model_params, train_sequences, price_ind,
         games_n, game_duration,
-        main_logger: logger
+        main_logger: logger,
+        override_params=dict(),
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
     main_logger.info(f"Process of: {counter} has started now.")
@@ -297,7 +300,7 @@ def single_model_pretraining_function(
 
         model = model_builder(
                 arch_num, time_feats, time_window, float_feats, out_size,
-                loss, nodes, lr, iteration=iteration,
+                loss, nodes, lr, iteration=iteration, override_params=override_params,
         )
         reward_fnum = 6
 
@@ -390,6 +393,7 @@ if __name__ == "__main__":
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
             workers=8,
+            normalize_timediff=True,
             minsamples_insegment=300,
             # clip_df_left=5000,
             # clip_df_right=4000,

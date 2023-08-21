@@ -685,6 +685,7 @@ if __name__ == "__main__":
                     file_path, get_n_bars=time_size,
                     add_timediff_feature=True,
                     include_timestamp=True,
+                    normalize_timediff=True,
                     minsamples_insegment=300,
                     # clip_df_left=5000,
                     # clip_df_right=12000,
