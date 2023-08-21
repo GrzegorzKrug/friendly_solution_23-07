@@ -298,8 +298,10 @@ def unpack_evals_to_table(res_list, add_summary=True, round_prec=5):
             if worst_trade_x < worst_trade:
                 worst_trade = worst_trade_x
 
-            cur_run = [val[0], val[1], np.round(val[2], round_prec), np.round(val[3], round_prec),
-                       np.round(val[4], round_prec)]
+            cur_run = [
+                    val[0], val[1], np.round(val[2], round_prec),
+                    np.round(val[3], round_prec), np.round(val[4], round_prec)
+            ]
             row = row + cur_run
 
         # print(row)

@@ -548,7 +548,7 @@ def model_builder(
             compile=False,
     )
     print(f"Compiling model: "
-          f"{arch_num}({iteration})-{time_feats}x{time_window}&{float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
+          f"{arch_num}({iteration})-{time_feats}x{time_window}, {float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"

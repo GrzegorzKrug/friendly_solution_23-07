@@ -248,6 +248,7 @@ def eval_func(
         GAMES_LIST[n]['score'] = last_score
 
         hidden_states[n][0] = last_score
+        hidden_states[n][1] = last_score
         # score = last_score
 
     for i_step in range(session_size):  # Never in done state
@@ -332,7 +333,7 @@ def eval_func(
                 transaction = cur_step_price \
                               - new_hidden_state_slice[0][3] \
                               - action_cost  # Price - buy price
-                transaction = 0
+                # transaction = 0
 
                 best_transaction = gamedict['best_transaction']
                 worst_transaction = gamedict['worst_transaction']
@@ -426,7 +427,7 @@ def eval_func(
                 how_many_actions, how_many_valid, np.round(end_gain, 5),
                 best_transaction, worst_transaction
         ))
-        plt.plot(xtmps, plot_array[:, 4], label="Score", color='green', alpha=0.4)
+        plt.plot(xtmps, plot_array[:, 4], label="Score", color='green', alpha=0.6)
         plt.plot(xtmps, plot_array[:, 8], label="Price", color=colors[0], alpha=0.6, linewidth=2)
         plt.title("Price")
         plt.legend()
