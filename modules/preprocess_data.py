@@ -493,7 +493,7 @@ def convert_thread(args):
             timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
             stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
             if do_normalize:
-                stamp_diff_s = np.log2(stamp_diff_s)
+                stamp_diff_s = np.log10(stamp_diff_s)
             # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
             step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
 

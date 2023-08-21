@@ -177,7 +177,7 @@ def pretrain_qmodel(
         RUN_LOGGER.warning(f"Not loading model - {naming_ob.path}.")
 
     time_memory, float_memory, action_memory = [], [], []
-    action_price_cost = 0.1
+    action_price_cost = 0.01
     minibatch_size = int(naming_ob.batch)
 
     for segment_i, segment in enumerate(segmentslist_alldata3d):
@@ -194,18 +194,18 @@ def pretrain_qmodel(
                 break
 
             state = segment[sample_i]
-            price_samp = segment[sample_i, -1, price_col_ind] / 2
+            price_samp = segment[sample_i, -1, price_col_ind]
             price_fut = segment[sample_i + 1, -1, price_col_ind]
-            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 4
+            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 20
             # print(f"PRICE CHANGE: {price_change:>5.5f}: {price_samp:>5.7f}, {price_fut:>5.7f}")
 
             for hid_stat in [0, 1]:
                 if hid_stat == 0:
                     "NO CARGO"
-                    qvs = [price_samp - action_price_cost, -price_change, -10]
+                    qvs = [price_samp / 2 - action_price_cost, -price_change, -10]
                 else:
                     "CARGO"
-                    qvs = [-10, price_change, price_samp - action_price_cost]
+                    qvs = [-10, price_change, price_samp / 2 - action_price_cost]
 
                 time_memory.append(state)
                 float_memory.append(hid_stat)
