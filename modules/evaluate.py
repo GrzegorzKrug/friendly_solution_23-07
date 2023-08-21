@@ -294,16 +294,17 @@ def eval_func(
             actions = np.argmax(q_vals, axis=-1)
             # print(actions)
 
+
             if actions[0] in [0, 2]:
                 gamedict['how_many_actions'] += 1
                 # how_many_actions += 1
 
-            if actions[0] == 0 and hidden_states[0, 2] == 0:
+            if actions[0] == 0 and hidden_states[gamei, 2] == 0:
                 "Buy when 0"
                 # how_many_valid += 1
                 gamedict['how_many_valid'] += 1
 
-            elif actions[0] == 2 and hidden_states[0, 2] == 1:
+            elif actions[0] == 2 and hidden_states[gamei, 2] == 1:
                 "Sell when 1"
                 # how_many_valid += 1
                 gamedict['how_many_valid'] += 1
@@ -368,7 +369,7 @@ def eval_func(
                 sample_time = None
             plot_vec = [
                     i_sample,
-                    hidden_states[0, 0], hidden_states[0, 2], actions[0],
+                    hidden_states[gamei, 0], hidden_states[gamei, 2], actions[0],
                     score, *q_vals[0, :], cur_step_price,
                     sample_time,
             ]
