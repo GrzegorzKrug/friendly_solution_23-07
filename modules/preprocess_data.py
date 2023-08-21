@@ -494,6 +494,8 @@ def convert_thread(args):
             stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
             if do_normalize:
                 stamp_diff_s = np.log10(stamp_diff_s)
+                mask = np.isnan(stamp_diff_s)
+                stamp_diff_s[mask] = 0
             # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
             step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
 
