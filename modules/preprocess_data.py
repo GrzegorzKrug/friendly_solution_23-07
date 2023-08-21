@@ -413,6 +413,7 @@ def convert_bars_to_traindata(
         list_ofdf,
         bars_n=10,
         add_time_diff=True,
+        normalize_timediff=False,
         use_val_diff=False,
         workers=6,
 ):
@@ -421,7 +422,7 @@ def convert_bars_to_traindata(
     args = []
     print(f"Converting bars to traindata, workers: {workers}")
     for segi, segment_df in enumerate(list_ofdf):
-        args.append((segi, segment_df, bars_n, add_time_diff, use_val_diff))
+        args.append((segi, segment_df, bars_n, add_time_diff, use_val_diff, normalize_timediff))
     if workers > 1:
         pool = mpc.Pool(workers)
         result = pool.map(convert_thread, args)
@@ -444,7 +445,7 @@ def convert_bars_to_traindata(
 
 
 def convert_thread(args):
-    segi, segment_df, bars_n, add_time_diff, use_val_diff = args
+    segi, segment_df, bars_n, add_time_diff, use_val_diff, do_normalize = args
     segment_df = segment_df.copy()
     print(f"Starting conversion: {segi:>3}: {segment_df.shape}")
     # print(segment_df.columns)
@@ -491,6 +492,8 @@ def convert_thread(args):
         if add_time_diff:
             timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
             stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
+            if do_normalize:
+                stamp_diff_s = np.log2(stamp_diff_s)
             # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
             step_df_2d = np.concatenate([step_df_2d, stamp_diff_s], axis=1)
 
@@ -518,6 +521,7 @@ def preprocess_pipe_bars(
         include_timestamp=False,
         split_interval_s=1800,
         add_timediff_feature=True,
+        normalize_timediff=False,
         first_sample_date=None,
         clip_df_left=None,
         clip_df_right=None,
@@ -587,6 +591,7 @@ def preprocess_pipe_bars(
             list_dfsegments,
             bars_n=get_n_bars,
             add_time_diff=add_timediff_feature,
+            normalize_timediff=normalize_timediff,
             workers=workers,
     )
     if len(segments) < 1 or len(columns) < 1:
@@ -695,8 +700,21 @@ if __name__ == "__main__":
             get_n_bars=80,
             split_interval_s=1800,
             include_timestamp=True,
-            first_sample_date="2023-6-27"
+            first_sample_date="2023-6-27",
+            clip_df_right=1500,
+
     )
+    cols = columns[0]
+    print(cols)
+    segments = segments[1]
+
+    print(len(segments))
+
+    tdiff = segments[130, :, -1]
+    # print(tdiff)
+    # print(np.log10(tdiff))
+    # print(np.log(tdiff))
+    # print(np.log2(tdiff))
     # print(segments[])
     # first = segments[0]
     # first = first.astype(int)

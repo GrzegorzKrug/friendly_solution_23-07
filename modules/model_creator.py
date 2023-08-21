@@ -511,10 +511,10 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
 def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
     for batch in [300]:
-        for lr in [1e-4, 1e-5]:
+        for lr in [1e-3, 1e-4, 1e-5, ]:
             for arch_num in [101]:
                 for dc in [0.9]:
-                    for iteration in [5, 0, 6, 7, 8]:
+                    for iteration in [0, 6, 7, 8]:
                         for nodes in [1000, ]:
                             for loss in ['huber', 'mae', ]:
                                 print(f"Yielding model, counter: {counter}")
@@ -527,18 +527,31 @@ def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
 
 def model_builder(
         arch_num, time_feats, time_window, float_feats, out_size,
-        loss, nodes, lr, iteration=0, ):
+        loss, nodes, lr, iteration=0, override_params=dict(), ):
     arch = ArchRegister.funcs[arch_num]
+    # print(f"Compiling model: "
+    #       f"{arch_num}({iteration})-{time_feats}x{time_window}&{float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
+
+    arch_num = override_params.get("arch_num", arch_num)
+    time_feats = override_params.get("time_feats", time_feats)
+    time_window = override_params.get("time_window", time_window)
+    float_feats = override_params.get("float_feats", float_feats)
+    out_size = override_params.get('out_size', out_size)
+    loss = override_params.get("loss", loss)
+    nodes = override_params.get('nodes', nodes)
+    lr = override_params.get("lr", lr)
+    iteration = override_params.get("iteration", iteration)
 
     model = arch(
             time_feats, time_window, float_feats, out_size, nodes,
             iteration=iteration,
             compile=False,
     )
+    print(f"Compiling model: "
+          f"{arch_num}({iteration})-{time_feats}x{time_window}&{float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"
-    print(f"Compiling model with lr: {lr}")
     adam = Adam(learning_rate=lr)
     model.compile(loss=loss, optimizer=adam)
     return model
@@ -554,4 +567,5 @@ def plot_all_architectures():
 
 
 if __name__ == "__main__":
-    plot_all_architectures()
+    # plot_all_architectures()
+    model_builder(101, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
