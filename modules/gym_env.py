@@ -71,7 +71,7 @@ class TradingEnvironment(gym.Env):
 
         if action == 0:
             if self.state == 0:
-                reward = -price * 2 - action_cost
+                reward = -price - action_cost
                 self.state = 1
             else:
                 reward = -10
@@ -90,7 +90,7 @@ class TradingEnvironment(gym.Env):
         else:
             self.idle_counter = 0
             if self.state == 1:
-                reward = price * 2 - action_cost
+                reward = price - action_cost
                 self.state = 0
             else:
                 reward = -10
@@ -106,7 +106,7 @@ class TradingEnvironment(gym.Env):
         if done and self.action_counter < 10:
             reward = -9
 
-        reward -= self.idle_counter / 100
+        reward -= self.idle_counter / 1000
 
         # if done:
         #     return np.array([price]), reward, done, {}
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
     use("ggplot")
 
-    use_dqn = True
+    use_dqn = False
 
     if use_dqn:
         model = DQN(
