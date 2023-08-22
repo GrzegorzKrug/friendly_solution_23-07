@@ -1,6 +1,3 @@
-import numpy as np
-import pandas as pd
-
 import os
 
 
@@ -9,16 +6,13 @@ if not os.path.exists(module_path):
     os.chdir('../')
 # ------------------------------------------------------------
 
-import gymnasium as gym
-import gym_anytrading
 # import quantstats as qs
 
-from stable_baselines3 import A2C
+from stable_baselines3 import PPO, A2C
 import matplotlib.pyplot as plt
 
 import gym
 from gym import spaces
-import pandas as pd
 import numpy as np
 
 from common_settings import path_data_folder, path_models
@@ -56,6 +50,8 @@ class TradingEnvironment(gym.Env):
         self.max_steps = len(self.segments_list[self.segm_i]) - 1
         self.hist_actions = []
         self.state = 0
+        self.action_counter = 0
+        self.idle_counter = 0
         print(f"RESETING: segm_i: {self.segm_i}")
 
         return self.observation
@@ -71,13 +67,17 @@ class TradingEnvironment(gym.Env):
         # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
         # price = time_arr[-1, self.price_col_ind]
         action_cost = 0.01
+        self.idle_counter += 1
 
         if action == 0:
             if self.state == 0:
-                reward = -price / 2 - action_cost
+                reward = -price * 2 - action_cost
                 self.state = 1
             else:
                 reward = -10
+            self.action_counter += 1
+            self.idle_counter = 0
+
         elif action == 1:
             reward = 0
             # diff = fut_price - price
@@ -88,17 +88,25 @@ class TradingEnvironment(gym.Env):
             #     reward = -diff * 100
 
         else:
+            self.idle_counter = 0
             if self.state == 1:
-                reward = price / 2 - action_cost
+                reward = price * 2 - action_cost
                 self.state = 0
             else:
                 reward = -10
+
+            self.action_counter += 1
 
         # price = self.df['price'].iloc[self.current_step]
         # reward = price * 10
 
         self.current_step += 1
         done = self.current_step >= self.max_steps
+
+        if done and self.action_counter < 10:
+            reward = -9
+
+        reward -= self.idle_counter / 200
 
         # if done:
         #     return np.array([price]), reward, done, {}
@@ -155,15 +163,41 @@ if __name__ == "__main__":
 
     use("ggplot")
 
-    model = A2C(
-            'MlpPolicy', env, verbose=1,
-            learning_rate=1e-4,
-    )
-    model_ph = path_baseline_models + "model1.bs3"
-    if os.path.isfile(model_ph):
-        model.load(model_ph)
+    use_a2c = False
 
-    model.learn(total_timesteps=10000)
+    if use_a2c:
+        model = A2C(
+                'MlpPolicy', env, verbose=1,
+                learning_rate=1e-5,
+                policy_kwargs=dict(net_arch=[1000, 1000]),
+        )
+        model_ph = path_baseline_models + "model1-a2c.bs3"
+    else:
+        model = A2C(
+                'MlpPolicy', env, verbose=1,
+                learning_rate=1e-5,
+                policy_kwargs=dict(net_arch=[1000, 1000]),
+        )
+        model_ph = path_baseline_models + "model1-ppo.bs3"
+
+    if os.path.isfile(model_ph):
+        model = model.load(
+                model_ph, env=env,
+                learning_rate=1e-5,
+        )
+
+    print("POLICY:")
+    for name, param in model.policy.named_parameters():
+        print(name, param.shape)
+    print(model.learning_rate)
+    print(model.policy.optimizer)
+    # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
+    # # model.set_parameters(dict(lr=0.1))
+    #
+    # print(model.policy.optimizer)
+    # print(model.learning_rate)
+
+    model.learn(total_timesteps=100000)
     model.save(model_ph)
 
     for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
@@ -191,4 +225,5 @@ if __name__ == "__main__":
 
         plt.tight_layout()
         plt.savefig(path_baseline_models + f"eval_seg-{seg_i}.png")
+        print(f"Saved plot: eval_seg-{seg_i}.png")
         plt.close()
