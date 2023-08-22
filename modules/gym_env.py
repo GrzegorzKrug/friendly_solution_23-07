@@ -192,6 +192,7 @@ if __name__ == "__main__":
     print("POLICY:")
     for name, param in model.policy.named_parameters():
         print(name, param.shape)
+
     print(model.learning_rate)
     print(model.policy.optimizer)
     # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
@@ -222,10 +223,11 @@ if __name__ == "__main__":
             ret, _some = model.predict(vec)
 
             if ret == 0:
-                plt.scatter(xs, price, color='green')
-            elif ret == 2:
                 plt.scatter(xs, price, color='red')
+            elif ret == 2:
+                plt.scatter(xs, price, color='green')
 
+        plt.title("Buy: Red, Sell: Green")
         plt.tight_layout()
         plt.savefig(path_baseline_models + f"eval_seg-{seg_i}.png")
         print(f"Saved plot: eval_seg-{seg_i}.png")
