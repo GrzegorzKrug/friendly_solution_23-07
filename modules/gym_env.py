@@ -106,7 +106,7 @@ class TradingEnvironment(gym.Env):
         if done and self.action_counter < 10:
             reward = -9
 
-        reward -= self.idle_counter / 200
+        reward -= self.idle_counter / 100
 
         # if done:
         #     return np.array([price]), reward, done, {}
@@ -169,13 +169,15 @@ if __name__ == "__main__":
         model = A2C(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
+                batch_size=300,
                 policy_kwargs=dict(net_arch=[1000, 1000]),
         )
         model_ph = path_baseline_models + "model1-a2c.bs3"
     else:
-        model = A2C(
+        model = PPO(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
+                batch_size=300,
                 policy_kwargs=dict(net_arch=[1000, 1000]),
         )
         model_ph = path_baseline_models + "model1-ppo.bs3"
@@ -184,6 +186,7 @@ if __name__ == "__main__":
         model = model.load(
                 model_ph, env=env,
                 learning_rate=1e-5,
+                # batch_size=500,
         )
 
     print("POLICY:")
