@@ -439,7 +439,7 @@ if __name__ == "__main__":
                     single_model_pretraining_function, *data, trainsegments_ofsequences3d, price_ind,
                     games_n, game_duration,
                     MainLogger,
-                    override_params=dict(lr=1e-4, batch_size=150),
+                    override_params=dict(lr=1e-4, batch_size=650),
             )
             process_list.append(proc)
             print(f"Added process: {counter}")

@@ -568,7 +568,7 @@ def model_builder(
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"
-    adam = Adam(learning_rate=lr, clipnorm=1)
+    adam = Adam(learning_rate=lr, clipnorm=1.0, clipvalue=100)
     model.compile(loss=loss, optimizer=adam)
     return model
 
