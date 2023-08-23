@@ -182,11 +182,13 @@ def arch_70(time_feats, time_window, float_feats, out_size, nodes=20, iteration=
 def arch_101(
         time_feats, time_window, float_feats, out_size, nodes=20,
         reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
+        activation='relu',
 ):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
             reg_k=reg_k, reg_b=reg_b, reg_out_k=reg_out_k, reg_out_b=reg_out_b,
+            act_L=activation, act_R=activation, act_comm=activation,
 
     )
     return model
@@ -208,12 +210,14 @@ def arch_102(time_feats, time_window, float_feats, out_size, nodes=20):
 def arch_103(
         time_feats, time_window, float_feats, out_size, nodes=20,
         reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
+        activation='relu',
 
 ):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes, common_nodes=2,
             reg_k=reg_k, reg_b=reg_b, reg_out_k=reg_out_k, reg_out_b=reg_out_b,
+            act_L=activation, act_R=activation, act_comm=activation,
 
     )
     return model
@@ -242,8 +246,7 @@ def arch_105(time_feats, time_window, float_feats, out_size, nodes=20):
 def builder_2_flats(
         time_feats, time_window, float_feats, out_size, nodes,
         dens_on_left=1, dense_on_right=0, common_nodes=1,
-        act_L='relu', act_R='relu',
-        iteration=0,
+        act_L='relu', act_R='relu', act_comm='relu', act_out='linear',
         reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
 ):
     """
@@ -305,11 +308,11 @@ def builder_2_flats(
     if common_nodes > 0:
         for i in range(common_nodes):
             dens = Dense(
-                    nodes, activation='relu',
+                    nodes, activation=act_comm,
                     bias_regularizer=reg_b, kernel_regularizer=reg_k,
             )(dens)
 
-    last = Dense(out_size, activation='linear',
+    last = Dense(out_size, activation=act_out,
                  bias_regularizer=reg_out_b, kernel_regularizer=reg_out_k,
                  )(dens)
     "Assign inputs / outputs"
@@ -482,13 +485,13 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
 
 def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
-    for batch in [300]:
-        for lr in [1e-3, 1e-4, 1e-5, ]:
-            for arch_num in [101]:
+    for batch in [100]:
+        for lr in [1e-4, 1e-5]:
+            for arch_num in [101, 103]:
                 for dc in [0.9]:
-                    for iteration in [0, 6, 7, 8]:
-                        for nodes in [1000, ]:
-                            for loss in ['huber', 'mae', ]:
+                    for iteration in [0, 16, 17, 18]:
+                        for nodes in [3000, ]:
+                            for loss in ['huber']:
                                 print(f"Yielding model, counter: {counter}")
                                 yield counter, (
                                         arch_num, time_feats, time_window, float_feats, out_size,
@@ -514,41 +517,46 @@ def model_builder(
     lr = override_params.get("lr", lr)
     iteration = override_params.get("iteration", iteration)
 
+    "DEFAULT PARAMETERS"
     reg_k = None
     reg_b = None
     reg_out_k = None
     reg_out_b = None
+    activation = 'relu'
 
     if iteration in [0, 1] or iteration is None:
         pass
 
-    elif iteration == 2:
+    elif iteration in [2]:
         reg_k = keras.regularizers.L1(0.001)
         reg_b = keras.regularizers.L1(0.001)
-    elif iteration == 3:
+    elif iteration in [3]:
         reg_k = keras.regularizers.L1(0.0001)
         reg_b = keras.regularizers.L1(0.0001)
-    elif iteration == 4:
+    elif iteration in [4]:
         reg_k = keras.regularizers.L1(0.00001)
         reg_b = keras.regularizers.L1(0.00001)
-    elif iteration == 5:
+    elif iteration in [5]:
         reg_out_b = keras.regularizers.L1(1e-6)
         reg_out_k = keras.regularizers.L1(1e-5)
-    elif iteration == 6:
+    elif iteration in [6, 16]:
         reg_k = keras.regularizers.L1(1e-6)
         reg_b = keras.regularizers.L1(1e-6)
         reg_out_b = keras.regularizers.L1(1e-6)
         reg_out_k = keras.regularizers.L1(1e-6)
-    elif iteration == 7:
+    elif iteration in [7, 17]:
         reg_k = keras.regularizers.L2(1e-6)
         reg_b = keras.regularizers.L2(1e-6)
         reg_out_b = keras.regularizers.L2(1e-6)
         reg_out_k = keras.regularizers.L2(1e-6)
-    elif iteration == 8:
+    elif iteration in [8, 18]:
         reg_k = keras.regularizers.L2(1e-6)
         reg_b = keras.regularizers.L2(1e-5)
     else:
         raise ValueError(f"Iteration not implemented: {iteration}")
+
+    if iteration in [16, 17, 18]:
+        activation = 'softsign'
 
     model = arch(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -556,7 +564,7 @@ def model_builder(
             compile=False,
     )
     print(f"Compiling model: "
-          f"{arch_num}({iteration})-{time_feats}x{time_window}, {float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
+          f"{arch_num}({iteration})(@{activation}) - {time_feats}x{time_window}, {float_feats} -> {out_size}, L:{loss} No:{nodes}, Lr:{lr}")
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"
@@ -574,7 +582,52 @@ def plot_all_architectures():
         tf.keras.backend.clear_session()
 
 
+def show_all_activations():
+    # Define input values
+    x = np.linspace(-10, 10, 400)
+
+    # Compute activation function values
+    relu_values = tf.keras.activations.relu(x)
+    leaky_relu_layer = tf.keras.layers.LeakyReLU(alpha=0.2)
+    leaky_relu_values = leaky_relu_layer(x)
+    sigmoid_values = tf.keras.activations.sigmoid(x)
+    tanh_values = tf.keras.activations.tanh(x)
+    elu_values = tf.keras.activations.elu(x)
+    swish_values = tf.keras.activations.swish(x)
+    softplus_values = tf.keras.activations.softplus(x)
+    softsign_values = tf.keras.activations.softsign(x)
+    gelu_values = tf.keras.activations.gelu(x)
+
+    # Create subplots
+    plt.figure(figsize=(12, 8))
+
+    activation_functions = [
+            ('ReLU', relu_values),
+            ('Leaky ReLU', leaky_relu_values),
+            ('Sigmoid', sigmoid_values),
+            ('Tanh', tanh_values),
+            ('ELU', elu_values),
+            ('Swish', swish_values),
+            ('Softplus', softplus_values),
+            ('Softsign', softsign_values),
+            ('GELU', gelu_values),
+    ]
+
+    rows = 3
+    cols = 3
+
+    for idx, (name, values) in enumerate(activation_functions, start=1):
+        plt.subplot(rows, cols, idx)
+        plt.plot(x, values)
+        plt.title(name)
+        plt.grid()
+
+    plt.tight_layout()
+    plt.show()
+
+
 if __name__ == "__main__":
     # plot_all_architectures()
     model_builder(101, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
-    model_builder(103, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
+    # model_builder(103, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
+    # show_all_activations()

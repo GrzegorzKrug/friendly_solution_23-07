@@ -158,8 +158,8 @@ def pretrain_qmodel(
         max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
-        epochs=10,
-        batch_train=25000,
+        epochs=20,
+        batch_train=15000,
 
 ):
     RUN_LOGGER.debug(f"Train params: {naming_ob}: trainN:{games_n}, agents: {agents_n}.")
@@ -196,13 +196,13 @@ def pretrain_qmodel(
             state = segment[sample_i]
             price_samp = segment[sample_i, -1, price_col_ind]
             price_fut = segment[sample_i + 1, -1, price_col_ind]
-            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 20
+            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 100
             # print(f"PRICE CHANGE: {price_change:>5.5f}: {price_samp:>5.7f}, {price_fut:>5.7f}")
 
             for hid_stat in [0, 1]:
                 if hid_stat == 0:
                     "NO CARGO"
-                    qvs = [price_samp / 2 - action_price_cost, -price_change, -10]
+                    qvs = [-price_samp / 3 - action_price_cost, -price_change, -10]
                 else:
                     "CARGO"
                     qvs = [-10, price_change, price_samp / 2 - action_price_cost]
@@ -222,7 +222,8 @@ def pretrain_qmodel(
                         shuffle=True,
                         epochs=epochs,
                         batch_size=minibatch_size,
-                        verbose=False)
+                        verbose=True
+                )
 
                 time_pretrain = time.time() - time0_pretrain
                 RUN_LOGGER.debug(
@@ -437,7 +438,8 @@ if __name__ == "__main__":
             proc = executor.submit(
                     single_model_pretraining_function, *data, trainsegments_ofsequences3d, price_ind,
                     games_n, game_duration,
-                    MainLogger
+                    MainLogger,
+                    override_params=dict(lr=1e-4, batch_size=150),
             )
             process_list.append(proc)
             print(f"Added process: {counter}")
