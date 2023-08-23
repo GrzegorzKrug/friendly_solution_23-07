@@ -179,11 +179,14 @@ def arch_70(time_feats, time_window, float_feats, out_size, nodes=20, iteration=
 
 @ArchRegister.register(101)
 @compile_decorator()
-def arch_101(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
+def arch_101(
+        time_feats, time_window, float_feats, out_size, nodes=20,
+        reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
+):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
-            iteration=iteration,
+            reg_k=reg_k, reg_b=reg_b, reg_out_k=reg_out_k, reg_out_b=reg_out_b,
 
     )
     return model
@@ -191,7 +194,7 @@ def arch_101(time_feats, time_window, float_feats, out_size, nodes=20, iteration
 
 @ArchRegister.register(102)
 @compile_decorator()
-def arch_102(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
+def arch_102(time_feats, time_window, float_feats, out_size, nodes=20):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes,
@@ -202,10 +205,15 @@ def arch_102(time_feats, time_window, float_feats, out_size, nodes=20, iteration
 
 @ArchRegister.register(103)
 @compile_decorator()
-def arch_103(time_feats, time_window, float_feats, out_size, nodes=20, iteration=0):
+def arch_103(
+        time_feats, time_window, float_feats, out_size, nodes=20,
+        reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
+
+):
     """"""
     model = builder_2_flats(
             time_feats, time_window, float_feats, out_size, nodes, common_nodes=2,
+            reg_k=reg_k, reg_b=reg_b, reg_out_k=reg_out_k, reg_out_b=reg_out_b,
 
     )
     return model
@@ -236,6 +244,7 @@ def builder_2_flats(
         dens_on_left=1, dense_on_right=0, common_nodes=1,
         act_L='relu', act_R='relu',
         iteration=0,
+        reg_k=None, reg_b=None, reg_out_k=None, reg_out_b=None,
 ):
     """
     2 Pipe lines
@@ -255,44 +264,7 @@ def builder_2_flats(
     time_input = Input(shape=(time_window, time_feats), )
     float_input = Input(shape=(float_feats,), )
 
-    reg_k = None
-    reg_b = None
-    reg_out_k = None
-    reg_out_b = None
-
-    if iteration in [0, 1] or iteration is None:
-        pass
-
-    elif iteration == 2:
-        reg_k = keras.regularizers.L1(0.001)
-        reg_b = keras.regularizers.L1(0.001)
-    elif iteration == 3:
-        reg_k = keras.regularizers.L1(0.0001)
-        reg_b = keras.regularizers.L1(0.0001)
-    elif iteration == 4:
-        reg_k = keras.regularizers.L1(0.00001)
-        reg_b = keras.regularizers.L1(0.00001)
-    elif iteration == 5:
-        reg_out_b = keras.regularizers.L1(1e-6)
-        reg_out_k = keras.regularizers.L1(1e-5)
-    elif iteration == 6:
-        reg_k = keras.regularizers.L1(1e-6)
-        reg_b = keras.regularizers.L1(1e-6)
-        reg_out_b = keras.regularizers.L1(1e-6)
-        reg_out_k = keras.regularizers.L1(1e-6)
-    elif iteration == 7:
-        reg_k = keras.regularizers.L2(1e-6)
-        reg_b = keras.regularizers.L2(1e-6)
-        reg_out_b = keras.regularizers.L2(1e-6)
-        reg_out_k = keras.regularizers.L2(1e-6)
-    elif iteration == 8:
-        reg_k = keras.regularizers.L2(1e-6)
-        reg_b = keras.regularizers.L2(1e-5)
-
-    else:
-        raise ValueError(f"Iteration not implemented: {iteration}")
-
-    "Time series LSTM"
+    "Time series"
     # input_L = tf.reshape(time_input, (-1, time_window, time_feats))
     flat_input = Flatten()(time_input)
     if dens_on_left > 1:
@@ -349,7 +321,7 @@ def builder_2pipes(
         time_feats, time_window, float_feats, out_size, nodes,
         lst_on_left=1, float_only_nodes=0, common_nodes=1):
     """
-    2 Pipe lines
+    2 Pipe lines with LSTM
     Args:
         float_feats:
         nodes:
@@ -542,9 +514,45 @@ def model_builder(
     lr = override_params.get("lr", lr)
     iteration = override_params.get("iteration", iteration)
 
+    reg_k = None
+    reg_b = None
+    reg_out_k = None
+    reg_out_b = None
+
+    if iteration in [0, 1] or iteration is None:
+        pass
+
+    elif iteration == 2:
+        reg_k = keras.regularizers.L1(0.001)
+        reg_b = keras.regularizers.L1(0.001)
+    elif iteration == 3:
+        reg_k = keras.regularizers.L1(0.0001)
+        reg_b = keras.regularizers.L1(0.0001)
+    elif iteration == 4:
+        reg_k = keras.regularizers.L1(0.00001)
+        reg_b = keras.regularizers.L1(0.00001)
+    elif iteration == 5:
+        reg_out_b = keras.regularizers.L1(1e-6)
+        reg_out_k = keras.regularizers.L1(1e-5)
+    elif iteration == 6:
+        reg_k = keras.regularizers.L1(1e-6)
+        reg_b = keras.regularizers.L1(1e-6)
+        reg_out_b = keras.regularizers.L1(1e-6)
+        reg_out_k = keras.regularizers.L1(1e-6)
+    elif iteration == 7:
+        reg_k = keras.regularizers.L2(1e-6)
+        reg_b = keras.regularizers.L2(1e-6)
+        reg_out_b = keras.regularizers.L2(1e-6)
+        reg_out_k = keras.regularizers.L2(1e-6)
+    elif iteration == 8:
+        reg_k = keras.regularizers.L2(1e-6)
+        reg_b = keras.regularizers.L2(1e-5)
+    else:
+        raise ValueError(f"Iteration not implemented: {iteration}")
+
     model = arch(
             time_feats, time_window, float_feats, out_size, nodes,
-            iteration=iteration,
+            reg_k=reg_k, reg_b=reg_b, reg_out_k=reg_out_k, reg_out_b=reg_out_b,
             compile=False,
     )
     print(f"Compiling model: "
@@ -569,3 +577,4 @@ def plot_all_architectures():
 if __name__ == "__main__":
     # plot_all_architectures()
     model_builder(101, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
+    model_builder(103, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
