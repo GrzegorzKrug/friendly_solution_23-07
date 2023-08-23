@@ -52,6 +52,7 @@ class TradingEnvironment(gym.Env):
         self.state = 0
         self.action_counter = 0
         self.idle_counter = 0
+        self.buy_price = 0
         print(f"RESETING: segm_i: {self.segm_i}")
 
         return self.observation
@@ -72,9 +73,11 @@ class TradingEnvironment(gym.Env):
         if action == 0:
             if self.state == 0:
                 reward = -price - action_cost
+                self.buy_price = price
                 self.state = 1
             else:
                 reward = -10
+
             self.action_counter += 1
             self.idle_counter = 0
 
@@ -90,7 +93,9 @@ class TradingEnvironment(gym.Env):
         else:
             self.idle_counter = 0
             if self.state == 1:
-                reward = price - action_cost
+                gain = price - self.buy_price
+                # reward = price - action_cost
+                reward = gain * 100
                 self.state = 0
             else:
                 reward = -10
@@ -185,7 +190,7 @@ if __name__ == "__main__":
     if os.path.isfile(model_ph):
         model = model.load(
                 model_ph, env=env,
-                learning_rate=1e-5,
+                learning_rate=1e-4,
                 # batch_size=500,
         )
 
@@ -201,8 +206,9 @@ if __name__ == "__main__":
     # print(model.policy.optimizer)
     # print(model.learning_rate)
 
-    model.learn(total_timesteps=100000)
+    model.learn(total_timesteps=1_000_000)
     model.save(model_ph)
+    print("MODEL SAVED")
 
     for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
         plt.figure(figsize=(20, 10))
