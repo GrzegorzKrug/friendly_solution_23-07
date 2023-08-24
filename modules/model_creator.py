@@ -485,8 +485,8 @@ def grid_models_generator_2(time_feats, time_window, float_feats, out_size):
 
 def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
     counter = 0
-    for batch in [100]:
-        for lr in [1e-4, 1e-5]:
+    for batch in [500]:
+        for lr in [1e-6]:
             for arch_num in [101, 103]:
                 for dc in [0.9]:
                     for iteration in [0, 16, 17, 18]:
@@ -568,7 +568,7 @@ def model_builder(
     model: keras.Model
     # model._init_set_name(f"{counter}-{arch_num}")
     # model.name = f"{counter}-{arch_num}"
-    adam = Adam(learning_rate=lr, clipnorm=1.0, clipvalue=100)
+    adam = Adam(learning_rate=lr, clipnorm=2.0, clipvalue=10)
     model.compile(loss=loss, optimizer=adam)
     return model
 
@@ -628,6 +628,6 @@ def show_all_activations():
 
 if __name__ == "__main__":
     # plot_all_architectures()
-    model_builder(101, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
+    # model_builder(101, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
     # model_builder(103, 17, 30, 1, 3, 'mae', 30, 1e-3, 1, override_params=dict(lr=1e-5))
-    # show_all_activations()
+    show_all_activations()
