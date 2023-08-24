@@ -781,7 +781,7 @@ def get_big_batch(fresh_mem, old_mem, batch_s, old_mem_fr, min_batches):
 def single_model_training_function(
         counter, model_params, train_sequences, price_ind,
         games_n, game_duration,
-        main_logger: logger
+        main_logger: logger, override_params=dict(),
 ):
     "LIMIT GPU BEFORE BUILDING MODEL"
     main_logger.info(f"Process of: {counter} has started now.")
@@ -804,7 +804,7 @@ def single_model_training_function(
 
         model = model_builder(
                 arch_num, time_feats, time_window, float_feats, out_size,
-                loss, nodes, lr, iteration=iteration,
+                loss, nodes, lr, iteration=iteration, override_params=override_params,
         )
         reward_fnum = 6
 
@@ -976,9 +976,10 @@ if __name__ == "__main__":
     for counter, data in enumerate(gen_it23):
         games_n = 100
         game_duration = 500
+        override_params = dict()
         proc = mpc.Process(target=single_model_training_function,
                            args=(*data, trainsegments_ofsequences3d, price_ind,
-                                 games_n, game_duration, MainLogger), )
+                                 games_n, game_duration, MainLogger, override_params), )
         process_list.append(proc)
         proc.start()
         MainLogger.info(f"Starting process:{counter} {data}")
