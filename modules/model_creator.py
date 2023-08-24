@@ -489,7 +489,7 @@ def grid_models_generator_it23(time_feats, time_window, float_feats, out_size):
         for lr in [1e-7]:
             for arch_num in [101, 103]:
                 for dc in [0.9]:
-                    for iteration in [0, 16, 17, 18]:
+                    for iteration in [0, 6, 7, 8]:
                         for nodes in [3000, ]:
                             for loss in ['huber']:
                                 print(f"Yielding model, counter: {counter}")
