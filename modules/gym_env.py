@@ -200,7 +200,7 @@ if __name__ == "__main__":
     if os.path.isfile(model_ph):
         model = model.load(
                 model_ph, env=env,
-                learning_rate=1e-4,
+                learning_rate=1e-5,
                 # batch_size=500,
         )
 
