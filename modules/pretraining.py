@@ -158,7 +158,7 @@ def pretrain_qmodel(
         max_eps=0.5, override_eps=None,
         remember_fresh_fraction=0.2,
         train_from_oldmem_fraction=0.4,
-        epochs=20,
+        epochs=3,
         batch_train=15000,
 
 ):
@@ -439,7 +439,7 @@ if __name__ == "__main__":
                     single_model_pretraining_function, *data, trainsegments_ofsequences3d, price_ind,
                     games_n, game_duration,
                     MainLogger,
-                    override_params=dict(lr=1e-6, batch_size=2000),
+                    override_params=dict(lr=1e-6, batch_size=3000),
             )
             process_list.append(proc)
             print(f"Added process: {counter}")
