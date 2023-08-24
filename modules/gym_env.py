@@ -29,8 +29,11 @@ class TradingEnvironment(gym.Env):
         self.columns = columns
         # print(columns)
         self.price_col_ind = np.argwhere(columns == 'last').ravel()[0]
+        self.timediff_col_ind = np.argwhere(columns == 'timediff_s').ravel()[0]
+        # print(f"Timediff col: {self.timediff_col_ind}")
 
-        # self.current_step = 0
+        # print(segments_list[0].shape)
+        # print(segments_list[0][:50, -1, self.timediff_col_ind])
 
         # self.max_steps = len(self.df)
 
@@ -75,11 +78,12 @@ class TradingEnvironment(gym.Env):
                 reward = -price - action_cost
                 self.buy_price = price
                 self.state = 1
+
+                self.action_counter += 1
+                self.idle_counter = 0
             else:
                 reward = -10
 
-            self.action_counter += 1
-            self.idle_counter = 0
 
         elif action == 1:
             reward = 0
@@ -91,16 +95,21 @@ class TradingEnvironment(gym.Env):
             #     reward = -diff * 100
 
         else:
-            self.idle_counter = 0
             if self.state == 1:
                 gain = price - self.buy_price
                 # reward = price - action_cost
-                reward = gain * 100
+                timediff = self.segments_list[self.segm_i][self.current_step, -1, self.timediff_col_ind]
+                bars_distance_scaling = timediff ** 2  # (0.2 , 1.5, 2.28, 0.8,) ** 2
+
+                quick_sell_penalty = -10 / self.idle_counter / bars_distance_scaling
+
+                reward = gain * 100 + quick_sell_penalty
+
                 self.state = 0
+                self.idle_counter = 0
+                self.action_counter += 1
             else:
                 reward = -10
-
-            self.action_counter += 1
 
         # price = self.df['price'].iloc[self.current_step]
         # reward = price * 10
@@ -158,12 +167,13 @@ if __name__ == "__main__":
         price_col -= 1
 
     segments_timestamps = [segm[:, :, timestamp_col] for segm in trainsegments_ofsequences3d]
+    columns = np.delete(columns[0], timestamp_col)
     trainsegments_ofsequences3d = [
             np.delete(segm, timestamp_col, axis=2) for segm in
             trainsegments_ofsequences3d
     ]
 
-    env = TradingEnvironment(trainsegments_ofsequences3d, columns[0])
+    env = TradingEnvironment(trainsegments_ofsequences3d, columns)
     env.reset()
 
     use("ggplot")

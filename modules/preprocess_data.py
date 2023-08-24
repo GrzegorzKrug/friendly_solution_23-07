@@ -493,7 +493,7 @@ def convert_thread(args):
             timestamps = segment_df.iloc[sample - 1:sample + bars_n, timestamp_ind]
             stamp_diff_s = np.diff(timestamps).reshape(-1, 1)
             if do_normalize:
-                stamp_diff_s = np.log10(stamp_diff_s)
+                stamp_diff_s = np.log(stamp_diff_s+1)
                 mask = np.isnan(stamp_diff_s)
                 stamp_diff_s[mask] = 0
             # print(f"Stamp: {stamp_diff_s.shape}, stepdf: {step_df_2d.shape}")
