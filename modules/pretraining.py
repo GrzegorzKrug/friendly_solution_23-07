@@ -196,13 +196,13 @@ def pretrain_qmodel(
             state = segment[sample_i]
             price_samp = segment[sample_i, -1, price_col_ind]
             price_fut = segment[sample_i + 1, -1, price_col_ind]
-            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 100
+            price_change = np.clip((price_fut * 10000.0 - price_samp * 10000.0), -5, 5) * 20
             # print(f"PRICE CHANGE: {price_change:>5.5f}: {price_samp:>5.7f}, {price_fut:>5.7f}")
 
             for hid_stat in [0, 1]:
                 if hid_stat == 0:
                     "NO CARGO"
-                    qvs = [-price_samp / 3 - action_price_cost, -price_change, -10]
+                    qvs = [-price_samp / 4 - action_price_cost, -price_change, -10]
                 else:
                     "CARGO"
                     qvs = [-10, price_change, price_samp / 2 - action_price_cost]
@@ -439,7 +439,7 @@ if __name__ == "__main__":
                     single_model_pretraining_function, *data, trainsegments_ofsequences3d, price_ind,
                     games_n, game_duration,
                     MainLogger,
-                    override_params=dict(lr=1e-5, batch_size=2000),
+                    override_params=dict(lr=1e-6, batch_size=2000),
             )
             process_list.append(proc)
             print(f"Added process: {counter}")
