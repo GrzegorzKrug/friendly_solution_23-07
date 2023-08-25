@@ -202,6 +202,9 @@ if __name__ == "__main__":
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
                 # batch_size=300,
+                batch_size=1000,
+
+
                 policy_kwargs=dict(net_arch=[2000, 2000]),
                 ent_coef=1e-3,
         )
