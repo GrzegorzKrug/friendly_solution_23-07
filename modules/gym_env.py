@@ -262,8 +262,8 @@ if __name__ == "__main__":
                         plt.scatter(xs, price, color='green')
                         state = 0
 
-                if samp_i > 300:
-                    break
+                # if samp_i > 300:
+                #     break
             plt.subplot(2, 1, 1)
             plt.title("Policy, Buy: Red, Sell: Green")
             plt.subplot(2, 1, 2)
