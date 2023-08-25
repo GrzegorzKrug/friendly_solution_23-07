@@ -41,9 +41,9 @@ class TradingEnvironment(gym.Env):
         # print(segments_list[0].shape)
         # print(f"OBS SIZE: {OSB_SIZE}")
 
-        self.action_space = spaces.Discrete(3)  # 0: Buy, 1: Sell, 2: Pass
+        self.action_space = spaces.Discrete(3)  # 0: Buy, 1: Pass, 2: Sell
         self.observation_space = spaces.Box(
-                low=-np.inf, high=np.inf, shape=(OSB_SIZE,),
+                low=-10, high=10, shape=(OSB_SIZE,),
                 dtype=np.float32
         )
 
