@@ -103,9 +103,9 @@ class TradingEnvironment(gym.Env):
                 timediff = self.segments_list[self.segm_i][self.current_step, -1, self.timediff_col_ind]
                 bars_distance_scaling = np.clip(timediff, 0.01, 100)  # (0.2 , 1.5, 2.28, 0.8,) ** 2
 
-                quick_sell_penalty = -5 / self.idle_counter / bars_distance_scaling
+                quick_sell_penalty = -1 / self.idle_counter / bars_distance_scaling
 
-                reward = gain * 1000 + quick_sell_penalty
+                reward = gain * 500 + quick_sell_penalty
                 print(reward, quick_sell_penalty)
 
                 self.state = 0
@@ -121,7 +121,12 @@ class TradingEnvironment(gym.Env):
         done = self.current_step >= self.max_steps
 
         if done and self.action_counter < 10:
-            reward = -9
+            reward = -10
+
+        elif done and self.state == 1:
+            reward = -1
+        # elif done:
+        #     reward = 0
 
         reward -= self.idle_counter / 1000
 
@@ -157,7 +162,7 @@ if __name__ == "__main__":
             normalize_timediff=True,
             minsamples_insegment=300,
             # clip_df_left=8000,
-            clip_df_right=14000,
+            clip_df_right=35000,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
 
@@ -195,19 +200,19 @@ if __name__ == "__main__":
     elif model_type == 'ppo':
         model = PPO(
                 'MlpPolicy', env, verbose=1,
-                learning_rate=1e-3,
+                learning_rate=1e-5,
                 # batch_size=300,
-                policy_kwargs=dict(net_arch=[1000, 1000]),
-                ent_coef=1e-2,
+                policy_kwargs=dict(net_arch=[2000, 2000]),
+                ent_coef=1e-3,
         )
-        model_ph = path_baseline_models + "model1-ppo.bs3"
+        model_ph = path_baseline_models + "model2-ppo.bs3"
     else:
         raise ValueError(f"Wrong model type: {model_type}")
 
     if os.path.isfile(model_ph):
         model = model.load(
                 model_ph, env=env,
-                learning_rate=1e-3,
+                learning_rate=1e-5,
                 ent_coef=1e-3,
                 # batch_size=500,
         )
@@ -224,13 +229,13 @@ if __name__ == "__main__":
     # print(model.policy.optimizer)
     # print(model.learning_rate)
 
-    for session in range(50):
-        model.learn(total_timesteps=50_000)
+    for session in range(300):
+        model.learn(total_timesteps=10_000)
         model.save(model_ph)
-        print("MODEL SAVED")
+        # print("MODEL SAVED")
 
         for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
-            plt.figure(figsize=(20, 10))
+            plt.figure(figsize=(15, 8))
             timeoffset_x = segments_timestamps[seg_i][0, 0]
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
@@ -269,6 +274,6 @@ if __name__ == "__main__":
             plt.subplot(2, 1, 2)
             plt.title("Deterministic, Buy: Red, Sell: Green")
             plt.tight_layout()
-            plt.savefig(path_baseline_models + f"{model_type}-eval_seg-{seg_i}.png")
+            plt.savefig(path_baseline_models + f"{model_type}-eval-{session}_seg-{seg_i}.png")
             print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
             plt.close()
