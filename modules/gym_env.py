@@ -154,7 +154,7 @@ if __name__ == "__main__":
             normalize_timediff=True,
             minsamples_insegment=300,
             # clip_df_left=8000,
-            clip_df_right=15000,
+            clip_df_right=14000,
             # first_sample_date="2023-6-29",  # only for on_balance_volume
     )
 
@@ -178,9 +178,9 @@ if __name__ == "__main__":
 
     use("ggplot")
 
-    use_dqn = False
+    model_type = "ppo"
 
-    if use_dqn:
+    if model_type == "dqn":
         model = DQN(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
@@ -188,14 +188,18 @@ if __name__ == "__main__":
                 batch_size=300,
         )
         model_ph = path_baseline_models + "model1-dqn.bs3"
-    else:
+
+    elif model_type == 'ppo':
         model = PPO(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
                 batch_size=300,
                 policy_kwargs=dict(net_arch=[1000, 1000]),
+                ent_coef=1e-3,
         )
         model_ph = path_baseline_models + "model1-ppo.bs3"
+    else:
+        raise ValueError(f"Wrong model type: {model_type}")
 
     if os.path.isfile(model_ph):
         model = model.load(
@@ -216,39 +220,40 @@ if __name__ == "__main__":
     # print(model.policy.optimizer)
     # print(model.learning_rate)
 
-    model.learn(total_timesteps=1_000_000)
-    model.save(model_ph)
-    print("MODEL SAVED")
+    for session in range(50):
+        model.learn(total_timesteps=50_000)
+        model.save(model_ph)
+        print("MODEL SAVED")
 
-    for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
-        plt.figure(figsize=(20, 10))
-        timeoffset_x = segments_timestamps[seg_i][0, 0]
+        for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
+            plt.figure(figsize=(20, 10))
+            timeoffset_x = segments_timestamps[seg_i][0, 0]
 
-        price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
-        price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
-        plt.plot(price_x, price_y, color='black', alpha=0.5)
+            price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
+            price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
+            plt.plot(price_x, price_y, color='black', alpha=0.5)
 
-        state = 0
+            state = 0
 
-        for samp_i, sample in enumerate(segmetn):
-            price = sample[-1, price_col]
-            # xs = sample[-1, timestamp_col] - timeoffset_x
-            xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
+            for samp_i, sample in enumerate(segmetn):
+                price = sample[-1, price_col]
+                # xs = sample[-1, timestamp_col] - timeoffset_x
+                xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
 
-            arr = sample.ravel()
-            vec = np.concatenate([arr, [state]])
+                arr = sample.ravel()
+                vec = np.concatenate([arr, [state]])
 
-            ret, _some = model.predict(vec)
+                ret, _some = model.predict(vec)
 
-            if ret == 0:
-                plt.scatter(xs, price, color='red')
-                state = 1
-            elif ret == 2:
-                plt.scatter(xs, price, color='green')
-                state = 0
+                if ret == 0:
+                    plt.scatter(xs, price, color='red')
+                    state = 1
+                elif ret == 2:
+                    plt.scatter(xs, price, color='green')
+                    state = 0
 
-        plt.title("Buy: Red, Sell: Green")
-        plt.tight_layout()
-        plt.savefig(path_baseline_models + f"eval_seg-{seg_i}.png")
-        print(f"Saved plot: eval_seg-{seg_i}.png")
-        plt.close()
+            plt.title("Buy: Red, Sell: Green")
+            plt.tight_layout()
+            plt.savefig(path_baseline_models + f"{model_type}-eval_seg-{seg_i}.png")
+            print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
+            plt.close()
