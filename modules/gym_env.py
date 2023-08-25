@@ -66,6 +66,8 @@ class TradingEnvironment(gym.Env):
         return np.concatenate([vec, [self.state]])
 
     def step(self, action):
+        # print(f"Step: {action}")
+
         assert self.action_space.contains(action)
         price = self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind]
         # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
@@ -99,11 +101,12 @@ class TradingEnvironment(gym.Env):
                 gain = price - self.buy_price
                 # reward = price - action_cost
                 timediff = self.segments_list[self.segm_i][self.current_step, -1, self.timediff_col_ind]
-                bars_distance_scaling = timediff ** 2  # (0.2 , 1.5, 2.28, 0.8,) ** 2
+                bars_distance_scaling = np.clip(timediff, 0.01, 100)  # (0.2 , 1.5, 2.28, 0.8,) ** 2
 
-                quick_sell_penalty = -10 / self.idle_counter / bars_distance_scaling
+                quick_sell_penalty = -5 / self.idle_counter / bars_distance_scaling
 
-                reward = gain * 100 + quick_sell_penalty
+                reward = gain * 1000 + quick_sell_penalty
+                print(reward, quick_sell_penalty)
 
                 self.state = 0
                 self.idle_counter = 0
@@ -192,10 +195,10 @@ if __name__ == "__main__":
     elif model_type == 'ppo':
         model = PPO(
                 'MlpPolicy', env, verbose=1,
-                learning_rate=1e-5,
-                batch_size=300,
+                learning_rate=1e-3,
+                # batch_size=300,
                 policy_kwargs=dict(net_arch=[1000, 1000]),
-                ent_coef=1e-3,
+                ent_coef=1e-2,
         )
         model_ph = path_baseline_models + "model1-ppo.bs3"
     else:
@@ -204,7 +207,8 @@ if __name__ == "__main__":
     if os.path.isfile(model_ph):
         model = model.load(
                 model_ph, env=env,
-                learning_rate=1e-5,
+                learning_rate=1e-3,
+                ent_coef=1e-3,
                 # batch_size=500,
         )
 
@@ -231,6 +235,9 @@ if __name__ == "__main__":
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
             price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
+            plt.subplot(2, 1, 1)
+            plt.plot(price_x, price_y, color='black', alpha=0.5)
+            plt.subplot(2, 1, 2)
             plt.plot(price_x, price_y, color='black', alpha=0.5)
 
             state = 0
@@ -243,16 +250,24 @@ if __name__ == "__main__":
                 arr = sample.ravel()
                 vec = np.concatenate([arr, [state]])
 
-                ret, _some = model.predict(vec)
+                for plt_i, det in [(1, False), (2, True)]:
+                    plt.subplot(2, 1, plt_i)
+                    ret, _some = model.predict(vec, deterministic=det)
+                    # print(f"Ret: {ret}, some: {_some}")
 
-                if ret == 0:
-                    plt.scatter(xs, price, color='red')
-                    state = 1
-                elif ret == 2:
-                    plt.scatter(xs, price, color='green')
-                    state = 0
+                    if ret == 0:
+                        plt.scatter(xs, price, color='red')
+                        state = 1
+                    elif ret == 2:
+                        plt.scatter(xs, price, color='green')
+                        state = 0
 
-            plt.title("Buy: Red, Sell: Green")
+                if samp_i > 300:
+                    break
+            plt.subplot(2, 1, 1)
+            plt.title("Policy, Buy: Red, Sell: Green")
+            plt.subplot(2, 1, 2)
+            plt.title("Deterministic, Buy: Red, Sell: Green")
             plt.tight_layout()
             plt.savefig(path_baseline_models + f"{model_type}-eval_seg-{seg_i}.png")
             print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
