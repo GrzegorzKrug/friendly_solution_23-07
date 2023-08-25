@@ -544,16 +544,16 @@ def model_builder(
         reg_out_k = keras.regularizers.L1(1e-5)
 
     elif iteration in [6, 16]:
-        reg_k = keras.regularizers.L1(1e-6)
-        reg_b = keras.regularizers.L1(1e-6)
-        reg_out_b = keras.regularizers.L1(1e-6)
-        reg_out_k = keras.regularizers.L1(1e-6)
+        reg_k = keras.regularizers.L1(1e-5)
+        reg_b = keras.regularizers.L1(1e-5)
+        reg_out_b = keras.regularizers.L1(1e-5)
+        reg_out_k = keras.regularizers.L1(1e-5)
 
     elif iteration in [7, 17]:
-        reg_k = keras.regularizers.L2(1e-6)
-        reg_b = keras.regularizers.L2(1e-6)
-        reg_out_b = keras.regularizers.L2(1e-6)
-        reg_out_k = keras.regularizers.L2(1e-6)
+        reg_k = keras.regularizers.L2(1e-5)
+        reg_b = keras.regularizers.L2(1e-5)
+        reg_out_b = keras.regularizers.L2(1e-5)
+        reg_out_k = keras.regularizers.L2(1e-5)
 
     elif iteration in [8, 18]:
         reg_k = keras.regularizers.L2(1e-6)
