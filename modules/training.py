@@ -976,7 +976,7 @@ if __name__ == "__main__":
     for counter, data in enumerate(gen_it23):
         games_n = 100
         game_duration = 500
-        override_params = dict()
+        override_params = dict(lr=1e-6)
         proc = mpc.Process(target=single_model_training_function,
                            args=(*data, trainsegments_ofsequences3d, price_ind,
                                  games_n, game_duration, MainLogger, override_params), )
