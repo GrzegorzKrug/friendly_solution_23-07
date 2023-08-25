@@ -274,6 +274,6 @@ if __name__ == "__main__":
             plt.subplot(2, 1, 2)
             plt.title("Deterministic, Buy: Red, Sell: Green")
             plt.tight_layout()
-            plt.savefig(path_baseline_models + f"{model_type}-eval-{session}_seg-{seg_i}.png")
+            plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
             print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
             plt.close()
