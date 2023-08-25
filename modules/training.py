@@ -227,7 +227,7 @@ def train_qmodel(
     RUN_LOGGER.debug(f"Input samples: {sum(map(len, segmentslist_alldata3d))}")
 
     # N_SAMPLES = len(datalist_2dsequences_ordered_train)
-    mini_batch_size = dict.get("batch_size", int(naming_ob.batch))
+    mini_batch_size = override_params.get("batch_size", int(naming_ob.batch))
 
     "GET MODEL PATH"
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
