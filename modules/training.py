@@ -218,6 +218,8 @@ def train_qmodel(
         time_file: TextIOWrapper = None,
         loss_file: TextIOWrapper = None,
         rew_file: TextIOWrapper = None,
+
+        override_params=dict(),
 ):
     RUN_LOGGER.debug(
             f"Train params: {naming_ob}: trainN:{games_n}, agents: {agents_n}. Reward F:{reward_f_num}")
@@ -225,6 +227,7 @@ def train_qmodel(
     RUN_LOGGER.debug(f"Input samples: {sum(map(len, segmentslist_alldata3d))}")
 
     # N_SAMPLES = len(datalist_2dsequences_ordered_train)
+    mini_batch_size = dict.get("batch_size", int(naming_ob.batch))
 
     "GET MODEL PATH"
     path_this_model_folder = os.path.join(path_models, naming_ob.path, "")
@@ -426,7 +429,7 @@ def train_qmodel(
                     model_keras, fresh_memory.memory,
                     discount=discount,
                     env_alldata3d=session_sequences3d,
-                    mini_batchsize=int(naming_ob.batch),
+                    mini_batchsize=mini_batch_size,
             )
             # L(history.history['loss'])
             # loss_file.write(f"{i_train_sess},{fresh_loss}\n")
@@ -456,7 +459,7 @@ def train_qmodel(
                             discount=discount,
                             # env_alldata3d=session_sequences3d,
                             segments_of3ddata=segmentslist_alldata3d,
-                            mini_batchsize=int(naming_ob.batch),
+                            mini_batchsize=mini_batch_size,
                     )
                     loss_file.write(f"{i_train_sess},{fresh_loss},{old_loss}\n")
             else:
@@ -819,6 +822,8 @@ def single_model_training_function(
                 learning_rate=lr, loss=loss, batch=batch,
                 discount=discount,
         )
+
+
     except Exception as exc:
         print(f"EXCEPTION when setting model: {exc}")
         RUN_LOGGER.error(exc, exc_info=True)
@@ -838,6 +843,7 @@ def single_model_training_function(
                 games_n=games_n,
                 reward_f_num=reward_fnum,
                 discount=discount,
+                override_params=override_params,
         )
     except Exception as exc:
         "PRINT TO SYS"
