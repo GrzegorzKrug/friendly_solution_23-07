@@ -530,25 +530,31 @@ def model_builder(
     elif iteration in [2]:
         reg_k = keras.regularizers.L1(0.001)
         reg_b = keras.regularizers.L1(0.001)
+
     elif iteration in [3]:
         reg_k = keras.regularizers.L1(0.0001)
         reg_b = keras.regularizers.L1(0.0001)
+
     elif iteration in [4]:
         reg_k = keras.regularizers.L1(0.00001)
         reg_b = keras.regularizers.L1(0.00001)
+
     elif iteration in [5]:
         reg_out_b = keras.regularizers.L1(1e-6)
         reg_out_k = keras.regularizers.L1(1e-5)
+
     elif iteration in [6, 16]:
         reg_k = keras.regularizers.L1(1e-6)
         reg_b = keras.regularizers.L1(1e-6)
         reg_out_b = keras.regularizers.L1(1e-6)
         reg_out_k = keras.regularizers.L1(1e-6)
+
     elif iteration in [7, 17]:
         reg_k = keras.regularizers.L2(1e-6)
         reg_b = keras.regularizers.L2(1e-6)
         reg_out_b = keras.regularizers.L2(1e-6)
         reg_out_k = keras.regularizers.L2(1e-6)
+
     elif iteration in [8, 18]:
         reg_k = keras.regularizers.L2(1e-6)
         reg_b = keras.regularizers.L2(1e-5)
