@@ -101,13 +101,15 @@ class TradingEnvironment(gym.Env):
                 gain = price - self.buy_price
                 # reward = price - action_cost
                 timediff = self.segments_list[self.segm_i][self.current_step, -1, self.timediff_col_ind]
-                bars_distance_scaling = np.clip(timediff, 0.01, 100)  # (0.2 , 1.5, 2.28, 0.8,) ** 2
+                bars_distance_scaling = np.clip(timediff, 0.2, 2)  # (0.2 , 1.5, 2.28, 0.8,) ** 2
 
-                quick_sell_penalty = -1 / self.idle_counter / bars_distance_scaling
+                quick_sell_penalty = -3 / self.idle_counter / bars_distance_scaling
 
-                reward = gain * 1000
-                print(reward, quick_sell_penalty)
-                reward += quick_sell_penalty
+                rew = gain * 1000
+                rew = np.clip(rew, -5, 5)
+                # print(reward, quick_sell_penalty)
+                reward = rew + quick_sell_penalty
+                print(reward, rew, quick_sell_penalty)
 
                 self.state = 0
                 self.idle_counter = 0
@@ -122,14 +124,14 @@ class TradingEnvironment(gym.Env):
         done = self.current_step >= self.max_steps
 
         if done and self.action_counter < 10:
-            reward = -10
+            reward = -20
 
         elif done and self.state == 1:
             reward = -1
         # elif done:
         #     reward = 0
 
-        reward -= self.idle_counter / 1000
+        reward -= self.idle_counter / 100
 
         # if done:
         #     return np.array([price]), reward, done, {}
@@ -188,14 +190,16 @@ if __name__ == "__main__":
     use("ggplot")
 
     model_type = "ppo"
-    lr = 1e-3
-    ent_coef = 1e-2
+    lr = 1e-5
+    ent_coef = 1e-3
+    arch_nodes = 2000
+    batch_size = 500
 
     if model_type == "dqn":
         model = DQN(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=1e-5,
-                policy_kwargs=dict(net_arch=[1000, 1000]),
+                policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
                 batch_size=300,
         )
         model_ph = path_baseline_models + "model1-dqn.bs3"
@@ -206,8 +210,9 @@ if __name__ == "__main__":
                 learning_rate=lr,
                 ent_coef=ent_coef,
                 # batch_size=300,
-                batch_size=1000,
-                policy_kwargs=dict(net_arch=[2000, 2000]),
+                batch_size=batch_size,
+                policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                clip_range=0.1,
         )
         model_ph = path_baseline_models + "model2-ppo.bs3"
     else:
@@ -218,7 +223,8 @@ if __name__ == "__main__":
                 model_ph, env=env,
                 learning_rate=lr,
                 ent_coef=ent_coef,
-                batch_size=800,
+                batch_size=batch_size,
+                clip_range=0.1,
         )
 
     print("POLICY:")
@@ -238,8 +244,8 @@ if __name__ == "__main__":
         model.save(model_ph)
         # print("MODEL SAVED")
 
-        for seg_i, segmetn in enumerate(trainsegments_ofsequences3d):
-            plt.figure(figsize=(15, 8))
+        for seg_i, segment in enumerate(trainsegments_ofsequences3d):
+            plt.figure(figsize=(20, 10))
             timeoffset_x = segments_timestamps[seg_i][0, 0]
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
@@ -258,7 +264,7 @@ if __name__ == "__main__":
                 red_x = []
                 red_y = []
 
-                for samp_i, sample in enumerate(segmetn):
+                for samp_i, sample in enumerate(segment):
                     price = sample[-1, price_col]
                     # xs = sample[-1, timestamp_col] - timeoffset_x
                     xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
