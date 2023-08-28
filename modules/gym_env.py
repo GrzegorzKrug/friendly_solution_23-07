@@ -251,9 +251,9 @@ if __name__ == "__main__":
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
             price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
             plt.subplot(2, 1, 1)
-            plt.plot(price_x, price_y, color='black', alpha=0.5)
+            plt.plot(price_x, price_y, color='black', alpha=0.4)
             plt.subplot(2, 1, 2)
-            plt.plot(price_x, price_y, color='black', alpha=0.5)
+            plt.plot(price_x, price_y, color='black', alpha=0.4)
 
             for plt_i, det in [(1, False), (2, True)]:
                 plt.subplot(2, 1, plt_i)
@@ -263,6 +263,10 @@ if __name__ == "__main__":
                 green_y = []
                 red_x = []
                 red_y = []
+                invalid_red_x = []
+                invalid_red_y = []
+                invalid_green_x = []
+                invalid_green_y = []
 
                 for samp_i, sample in enumerate(segment):
                     price = sample[-1, price_col]
@@ -277,17 +281,28 @@ if __name__ == "__main__":
 
                     if ret == 0:
                         # plt.scatter(xs, price, color='red')
-                        red_x.append(xs)
-                        red_y.append(price)
+                        if state == 0:
+                            red_x.append(xs)
+                            red_y.append(price)
+                        else:
+                            invalid_red_x.append(xs)
+                            invalid_red_y.append(price)
+
                         state = 1
                     elif ret == 2:
                         # plt.scatter(xs, price, color='green')
+                        if state == 1:
+                            green_x.append(xs)
+                            green_y.append(price)
+                        else:
+                            invalid_green_x.append(xs)
+                            invalid_green_y.append(price)
                         state = 0
-                        green_x.append(xs)
-                        green_y.append(price)
 
-                plt.scatter(green_x, green_y, color='green')
-                plt.scatter(red_x, red_y, color='red')
+                plt.scatter(green_x, green_y, color='green', s=50)
+                plt.scatter(red_x, red_y, color='red', s=50)
+                plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
+                plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
 
             plt.subplot(2, 1, 1)
             plt.title("Policy, Buy: Red, Sell: Green")
