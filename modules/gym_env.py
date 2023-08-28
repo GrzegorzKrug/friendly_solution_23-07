@@ -187,6 +187,7 @@ if __name__ == "__main__":
     use("ggplot")
 
     model_type = "ppo"
+    lr = 1e-5
 
     if model_type == "dqn":
         model = DQN(
@@ -200,7 +201,7 @@ if __name__ == "__main__":
     elif model_type == 'ppo':
         model = PPO(
                 'MlpPolicy', env, verbose=1,
-                learning_rate=1e-5,
+                learning_rate=lr,
                 # batch_size=300,
                 batch_size=1000,
 
@@ -215,7 +216,7 @@ if __name__ == "__main__":
     if os.path.isfile(model_ph):
         model = model.load(
                 model_ph, env=env,
-                learning_rate=1e-5,
+                learning_rate=lr,
                 ent_coef=1e-3,
                 # batch_size=500,
         )
@@ -232,8 +233,8 @@ if __name__ == "__main__":
     # print(model.policy.optimizer)
     # print(model.learning_rate)
 
-    for session in range(300):
-        model.learn(total_timesteps=10_000)
+    for session in range(100):
+        model.learn(total_timesteps=50_000)
         model.save(model_ph)
         # print("MODEL SAVED")
 
@@ -248,30 +249,44 @@ if __name__ == "__main__":
             plt.subplot(2, 1, 2)
             plt.plot(price_x, price_y, color='black', alpha=0.5)
 
-            state = 0
+            for plt_i, det in [(1, False), (2, True)]:
+                plt.subplot(2, 1, plt_i)
 
-            for samp_i, sample in enumerate(segmetn):
-                price = sample[-1, price_col]
-                # xs = sample[-1, timestamp_col] - timeoffset_x
-                xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
+                state = 0
+                green_x = []
+                green_y = []
+                red_x = []
+                red_y = []
 
-                arr = sample.ravel()
-                vec = np.concatenate([arr, [state]])
+                for samp_i, sample in enumerate(segmetn):
+                    price = sample[-1, price_col]
+                    # xs = sample[-1, timestamp_col] - timeoffset_x
+                    xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
 
-                for plt_i, det in [(1, False), (2, True)]:
-                    plt.subplot(2, 1, plt_i)
+                    arr = sample.ravel()
+                    vec = np.concatenate([arr, [state]])
+
                     ret, _some = model.predict(vec, deterministic=det)
                     # print(f"Ret: {ret}, some: {_some}")
 
                     if ret == 0:
-                        plt.scatter(xs, price, color='red')
+                        # plt.scatter(xs, price, color='red')
+                        red_x.append(xs)
+                        red_y.append(price)
                         state = 1
                     elif ret == 2:
-                        plt.scatter(xs, price, color='green')
+                        # plt.scatter(xs, price, color='green')
                         state = 0
-
-                # if samp_i > 300:
+                        green_x.append(xs)
+                        green_y.append(price)
+                    break
+                # if samp_i > 500:
                 #     break
+
+                plt.scatter(green_x, green_y, color='green')
+                plt.scatter(red_x, red_y, color='red')
+
+
             plt.subplot(2, 1, 1)
             plt.title("Policy, Buy: Red, Sell: Green")
             plt.subplot(2, 1, 2)
