@@ -8,7 +8,7 @@ if not os.path.exists(module_path):
 
 # import quantstats as qs
 
-from stable_baselines3 import PPO, A2C, DQN
+from stable_baselines3 import PPO, DQN
 import matplotlib.pyplot as plt
 
 import gym
@@ -105,8 +105,9 @@ class TradingEnvironment(gym.Env):
 
                 quick_sell_penalty = -1 / self.idle_counter / bars_distance_scaling
 
-                reward = gain * 500 + quick_sell_penalty
+                reward = gain * 1000
                 print(reward, quick_sell_penalty)
+                reward += quick_sell_penalty
 
                 self.state = 0
                 self.idle_counter = 0
@@ -187,7 +188,8 @@ if __name__ == "__main__":
     use("ggplot")
 
     model_type = "ppo"
-    lr = 1e-5
+    lr = 1e-3
+    ent_coef = 1e-2
 
     if model_type == "dqn":
         model = DQN(
@@ -202,12 +204,10 @@ if __name__ == "__main__":
         model = PPO(
                 'MlpPolicy', env, verbose=1,
                 learning_rate=lr,
+                ent_coef=ent_coef,
                 # batch_size=300,
                 batch_size=1000,
-
-
                 policy_kwargs=dict(net_arch=[2000, 2000]),
-                ent_coef=1e-3,
         )
         model_ph = path_baseline_models + "model2-ppo.bs3"
     else:
@@ -217,8 +217,8 @@ if __name__ == "__main__":
         model = model.load(
                 model_ph, env=env,
                 learning_rate=lr,
-                ent_coef=1e-3,
-                # batch_size=500,
+                ent_coef=ent_coef,
+                batch_size=800,
         )
 
     print("POLICY:")
@@ -279,13 +279,9 @@ if __name__ == "__main__":
                         state = 0
                         green_x.append(xs)
                         green_y.append(price)
-                    break
-                # if samp_i > 500:
-                #     break
 
                 plt.scatter(green_x, green_y, color='green')
                 plt.scatter(red_x, red_y, color='red')
-
 
             plt.subplot(2, 1, 1)
             plt.title("Policy, Buy: Red, Sell: Green")
@@ -295,3 +291,5 @@ if __name__ == "__main__":
             plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
             print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
             plt.close()
+
+        print(f"PLOTTED SESSION: {session}")
