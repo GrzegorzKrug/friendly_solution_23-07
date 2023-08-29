@@ -109,7 +109,7 @@ class TradingEnvironment(gym.Env):
                 rew = np.clip(rew, -5, 5)
                 # print(reward, quick_sell_penalty)
                 reward = rew + quick_sell_penalty
-                print(reward, rew, quick_sell_penalty)
+                # print(reward, rew, quick_sell_penalty)
 
                 self.state = 0
                 self.idle_counter = 0
@@ -250,7 +250,7 @@ if __name__ == "__main__":
 
             ROWS = 4
             COLS = 1
-            plt.subplots(ROWS, COLS, figsize=(30, 15), height_ratios=[5, 2, 1, 1], dpi=170, sharex=True)
+            plt.subplots(ROWS, COLS, figsize=(25, 13), height_ratios=[5, 2, 1, 1], dpi=150, sharex=True)
             timeoffset_x = segments_timestamps[seg_i][0, 0]
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
@@ -348,7 +348,7 @@ if __name__ == "__main__":
             plt.suptitle(f"Action cost: {action_cost}")
             plt.tight_layout()
             plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
-            print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
+            # print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
             plt.close()
 
-        print(f"PLOTTED SESSION: {session}")
+        print(f"PLOT Session Ended: {session}")
