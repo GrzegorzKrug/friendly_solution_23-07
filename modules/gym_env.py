@@ -245,18 +245,29 @@ if __name__ == "__main__":
         # print("MODEL SAVED")
 
         for seg_i, segment in enumerate(trainsegments_ofsequences3d):
-            plt.figure(figsize=(20, 10))
+            action_cost = 0.0001
+
+            plt.subplots(4, figsize=(20, 10), height_ratios=[3, 2, 1.5, 1.5])
             timeoffset_x = segments_timestamps[seg_i][0, 0]
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
             price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
-            plt.subplot(2, 1, 1)
-            plt.plot(price_x, price_y, color='black', alpha=0.4)
-            plt.subplot(2, 1, 2)
-            plt.plot(price_x, price_y, color='black', alpha=0.4)
+            # plt.subplot(3, 1, 1)
+            # plt.plot(price_x, price_y, color='black', alpha=0.4)
+            # plt.subplot(3, 1, 2)
+            # plt.plot(price_x, price_y, color='black', alpha=0.4)
+            # plt.subplot(3, 1, 3)
 
-            for plt_i, det in [(1, False), (2, True)]:
-                plt.subplot(2, 1, plt_i)
+            for plt_i, det, det_state in [
+                    (1, False, None), (2, True, None),
+                    (3, True, False), (4, True, True)
+            ]:
+                plt.subplot(4, 1, plt_i)
+                plt.plot(price_x, price_y, color='black', alpha=0.4)
+
+                value = price_y[0]
+                cash = price_y[0]
+                value_hist = []
 
                 state = 0
                 green_x = []
@@ -269,7 +280,7 @@ if __name__ == "__main__":
                 invalid_green_y = []
 
                 for samp_i, sample in enumerate(segment):
-                    price = sample[-1, price_col]
+                    step_price = sample[-1, price_col]
                     # xs = sample[-1, timestamp_col] - timeoffset_x
                     xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
 
@@ -278,36 +289,56 @@ if __name__ == "__main__":
 
                     ret, _some = model.predict(vec, deterministic=det)
                     # print(f"Ret: {ret}, some: {_some}")
+                    if det_state is True:
+                        state = 1
+                    elif det_state is False:
+                        state = 0
 
                     if ret == 0:
                         # plt.scatter(xs, price, color='red')
                         if state == 0:
-                            red_x.append(xs)
-                            red_y.append(price)
+                            green_x.append(xs)
+                            green_y.append(step_price)
+                            value -= action_cost
+                            cash = cash - step_price - action_cost
+
                         else:
-                            invalid_red_x.append(xs)
-                            invalid_red_y.append(price)
+                            invalid_green_x.append(xs)
+                            invalid_green_y.append(step_price)
 
                         state = 1
                     elif ret == 2:
                         # plt.scatter(xs, price, color='green')
                         if state == 1:
-                            green_x.append(xs)
-                            green_y.append(price)
+                            red_x.append(xs)
+                            red_y.append(step_price)
+                            cash = cash + step_price - action_cost
+                            value = cash
                         else:
-                            invalid_green_x.append(xs)
-                            invalid_green_y.append(price)
+                            invalid_red_x.append(xs)
+                            invalid_red_y.append(step_price)
                         state = 0
+
+                    if det_state is None:
+                        value_hist.append(value)
 
                 plt.scatter(green_x, green_y, color='green', s=50)
                 plt.scatter(red_x, red_y, color='red', s=50)
                 plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
                 plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
+                if det_state is None:
+                    plt.plot(price_x, value_hist, color='blue', alpha=0.5)
 
-            plt.subplot(2, 1, 1)
-            plt.title("Policy, Buy: Red, Sell: Green")
-            plt.subplot(2, 1, 2)
-            plt.title("Deterministic, Buy: Red, Sell: Green")
+            plt.subplot(4, 1, 1)
+            plt.title("Gra, Buy: Green, Sell: Red")
+            plt.subplot(4, 1, 2)
+            plt.title("Deterministyczna gra, Buy: Green, Sell: Red")
+            plt.subplot(4, 1, 3)
+            plt.title("Podgląd miejsc kupna Buy")
+            plt.subplot(4, 1, 4)
+            plt.title("Podgląd miejsc Sprzedaży")
+
+            plt.suptitle(f"Action cost: {action_cost}")
             plt.tight_layout()
             plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
             print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
