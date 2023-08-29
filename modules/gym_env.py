@@ -240,8 +240,9 @@ if __name__ == "__main__":
     # print(model.learning_rate)
 
     for session in range(100):
-        model.learn(total_timesteps=50_000)
-        model.save(model_ph)
+        if session != 0:
+            model.learn(total_timesteps=50_000)
+            model.save(model_ph)
         # print("MODEL SAVED")
 
         for seg_i, segment in enumerate(trainsegments_ofsequences3d):
