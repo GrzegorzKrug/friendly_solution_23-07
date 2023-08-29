@@ -258,6 +258,7 @@ if __name__ == "__main__":
             # plt.subplot(3, 1, 2)
             # plt.plot(price_x, price_y, color='black', alpha=0.4)
             # plt.subplot(3, 1, 3)
+            endgain = {1: 0, 2: 0}
 
             for plt_i, det, det_state in [
                     (1, False, None), (2, True, None),
@@ -330,10 +331,13 @@ if __name__ == "__main__":
                 if det_state is None:
                     plt.plot(price_x, value_hist, color='blue', alpha=0.5)
 
+                gain = value - price_y[0]
+                endgain[plt_i] = gain
+
             plt.subplot(4, 1, 1)
-            plt.title("Gra, Buy: Green, Sell: Red")
+            plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain[1]:>4.4f}")
             plt.subplot(4, 1, 2)
-            plt.title("Deterministyczna gra, Buy: Green, Sell: Red")
+            plt.title(f"Deterministyczna gra, Buy: Green, Sell: Red. Endgain: {endgain[2]:>4.4f}")
             plt.subplot(4, 1, 3)
             plt.title("Podgląd miejsc kupna Buy")
             plt.subplot(4, 1, 4)
