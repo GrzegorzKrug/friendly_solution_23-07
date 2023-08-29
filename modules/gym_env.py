@@ -248,7 +248,9 @@ if __name__ == "__main__":
         for seg_i, segment in enumerate(trainsegments_ofsequences3d):
             action_cost = 0.0001
 
-            plt.subplots(4, figsize=(20, 10), height_ratios=[3, 2, 1.5, 1.5])
+            ROWS = 4
+            COLS = 1
+            plt.subplots(ROWS, COLS, figsize=(30, 15), height_ratios=[5, 2, 1, 1], dpi=170, sharex=True)
             timeoffset_x = segments_timestamps[seg_i][0, 0]
 
             price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
@@ -264,7 +266,7 @@ if __name__ == "__main__":
                     (1, False, None), (2, True, None),
                     (3, True, False), (4, True, True)
             ]:
-                plt.subplot(4, 1, plt_i)
+                plt.subplot(ROWS, COLS, plt_i)
                 plt.plot(price_x, price_y, color='black', alpha=0.4)
 
                 value = price_y[0]
@@ -334,14 +336,14 @@ if __name__ == "__main__":
                 gain = value - price_y[0]
                 endgain[plt_i] = gain
 
-            plt.subplot(4, 1, 1)
+            plt.subplot(ROWS, COLS, 1)
             plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain[1]:>4.4f}")
-            plt.subplot(4, 1, 2)
+            plt.subplot(ROWS, COLS, 2)
             plt.title(f"Deterministyczna gra, Buy: Green, Sell: Red. Endgain: {endgain[2]:>4.4f}")
-            plt.subplot(4, 1, 3)
-            plt.title("Podgląd miejsc kupna Buy")
-            plt.subplot(4, 1, 4)
-            plt.title("Podgląd miejsc Sprzedaży")
+            plt.subplot(ROWS, COLS, 3)
+            plt.title("Podgląd miejsc kupna")
+            plt.subplot(ROWS, COLS, 4)
+            plt.title("Podgląd miejsc sprzedaży")
 
             plt.suptitle(f"Action cost: {action_cost}")
             plt.tight_layout()
