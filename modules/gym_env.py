@@ -82,7 +82,7 @@ class TradingEnvironment(gym.Env):
         # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
         # price = time_arr[-1, self.price_col_ind]
         reward_action_cost = 0.001
-        score_action_cost=0.0001
+        score_action_cost = 0.0001
         self.idle_counter += 1
 
         if action == 0:
@@ -119,9 +119,10 @@ class TradingEnvironment(gym.Env):
                 quick_sell_penalty = -3 / self.idle_counter / bars_distance_scaling
 
                 rew = gain * 3000 - reward_action_cost
-                rew = np.clip(rew, -3, 3)
+                # rew = np.clip(rew, -3, 3)
                 # print(reward, quick_sell_penalty)
                 reward = rew + quick_sell_penalty
+                reward = np.clip(reward, -8, 8)
                 # print(reward, rew, quick_sell_penalty)
 
                 self.state = 0
