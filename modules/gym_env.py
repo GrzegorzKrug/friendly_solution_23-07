@@ -47,8 +47,12 @@ class TradingEnvironment(gym.Env):
                 dtype=np.float32
         )
 
-    def reset(self):
-        self.segm_i = np.random.randint(0, len(self.segments_list))
+    def reset(self, segm_i=None):
+        if segm_i is None:
+            self.segm_i = np.random.randint(0, len(self.segments_list))
+        else:
+            self.segm_i = segm_i
+
         self.current_step = 0
         self.max_steps = len(self.segments_list[self.segm_i]) - 1
         self.hist_actions = []
@@ -56,6 +60,11 @@ class TradingEnvironment(gym.Env):
         self.action_counter = 0
         self.idle_counter = 0
         self.buy_price = 0
+        self.cash = self.segments_list[self.segm_i][0, -1, self.price_col_ind]
+        self.score = self.cash
+        # self.value_hist=[]
+        # self.reward_hist=[]
+
         print(f"RESETING: segm_i: {self.segm_i}")
 
         return self.observation
@@ -66,23 +75,27 @@ class TradingEnvironment(gym.Env):
         return np.concatenate([vec, [self.state]])
 
     def step(self, action):
-        # print(f"Step: {action}")
+        # print(f"Step: {self.current_step}-{action} (max: {self.max_steps})")
 
         assert self.action_space.contains(action)
         price = self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind]
         # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
         # price = time_arr[-1, self.price_col_ind]
-        action_cost = 0.01
+        reward_action_cost = 0.001
+        score_action_cost=0.0001
         self.idle_counter += 1
 
         if action == 0:
             if self.state == 0:
-                reward = -price - action_cost
+                reward = -price - reward_action_cost
                 self.buy_price = price
                 self.state = 1
 
                 self.action_counter += 1
                 self.idle_counter = 0
+
+                self.score -= score_action_cost
+                self.cash = self.cash - price - score_action_cost
             else:
                 reward = -10
 
@@ -105,8 +118,8 @@ class TradingEnvironment(gym.Env):
 
                 quick_sell_penalty = -3 / self.idle_counter / bars_distance_scaling
 
-                rew = gain * 1000
-                rew = np.clip(rew, -5, 5)
+                rew = gain * 3000 - reward_action_cost
+                rew = np.clip(rew, -3, 3)
                 # print(reward, quick_sell_penalty)
                 reward = rew + quick_sell_penalty
                 # print(reward, rew, quick_sell_penalty)
@@ -114,6 +127,9 @@ class TradingEnvironment(gym.Env):
                 self.state = 0
                 self.idle_counter = 0
                 self.action_counter += 1
+
+                self.cash = self.cash + price - score_action_cost
+                self.score = self.cash
             else:
                 reward = -10
 
@@ -141,8 +157,127 @@ class TradingEnvironment(gym.Env):
 
         return next_observation, reward, done, {}
 
-    def render(self):
-        pass
+    def evaluate(self, model, new_figure=True, segm_i=None):
+        action_cost = 0.0001
+
+        ROWS = 3
+        COLS = 1
+        if new_figure:
+            plt.subplots(ROWS, COLS, figsize=(25, 13), height_ratios=[5, 2, 3], dpi=150, sharex=True)
+        timeoffset_x = segments_timestamps[self.segm_i][0, 0]
+        # timeoffset_x = self.segments_list[self.segm_i][0, 0, self.timediff_col_ind]
+
+        # price_x = self.segments_list[self.segm_i][:, -1, -1] - timeoffset_x
+        price_x = segments_timestamps[self.segm_i][:, -1] - timeoffset_x
+        price_y = self.segments_list[self.segm_i][:, -1, price_col]
+        # plt.subplot(3, 1, 1)
+        # plt.plot(price_x, price_y, color='black', alpha=0.4)
+        # plt.subplot(3, 1, 2)
+        # plt.plot(price_x, price_y, color='black', alpha=0.4)
+        # plt.subplot(3, 1, 3)
+        endgain = {1: 0, 2: 0}
+
+        for plt_i, det, det_state in [
+                (1, False, None),  # (2, True, None),
+                (3, True, False), (3, True, True)
+        ]:
+            plt.subplot(ROWS, COLS, plt_i)
+            plt.plot(price_x, price_y, color='black', alpha=0.4)
+
+            # value = price_y[0]
+            # cash = price_y[0]
+            value_hist = []
+
+            # state = 0
+            green_x = []
+            green_y = []
+            red_x = []
+            red_y = []
+            invalid_red_x = []
+            invalid_red_y = []
+            invalid_green_x = []
+            invalid_green_y = []
+            reward_hist = []
+
+            self.reset(segm_i=segm_i)
+
+            done = False
+            while not done:
+                sample = self.segments_list[self.segm_i][self.current_step]
+
+                step_price = sample[-1, price_col]
+                xs = segments_timestamps[self.segm_i][self.current_step, -1] - timeoffset_x
+                # xs = self.segments_list[seg_i][samp_i, -1] - timeoffset_x
+
+
+                # arr = sample.ravel()
+                # vec = np.concatenate([arr, [state]])
+                # print()
+                # print(f"{self.current_step}({done}): Getting obs")
+                vec = self.observation
+
+                # print(f"done:{done}")
+                premove_state = env.state
+
+                pred_act, _some = model.predict(vec, deterministic=det)
+                obs, rew, done, _ = self.step(pred_act)
+                reward_hist.append(rew)
+                # print(f"done:{done}")
+                # if np.random.random()<0.1:
+                #     done=True
+                # print(f"Ret: {ret}, some: {_some}")
+
+                if det_state is True:
+                    env.state = 1
+                elif det_state is False:
+                    env.state = 0
+
+                if pred_act == 0:
+                    # plt.scatter(xs, price, color='red')
+                    if premove_state == 0:
+                        green_x.append(xs)
+                        green_y.append(step_price)
+
+                    else:
+                        invalid_green_x.append(xs)
+                        invalid_green_y.append(step_price)
+
+                elif pred_act == 2:
+                    # plt.scatter(xs, price, color='green')
+                    if premove_state == 1:
+                        red_x.append(xs)
+                        red_y.append(step_price)
+                    else:
+                        invalid_red_x.append(xs)
+                        invalid_red_y.append(step_price)
+
+                value = env.score
+                if det_state is None:
+                    value_hist.append(value)
+
+            plt.scatter(green_x, green_y, color='green', s=50)
+            plt.scatter(red_x, red_y, color='red', s=50)
+            plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
+            plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
+            if plt_i == 1:
+                plt.plot(price_x[:-1], value_hist, color='blue', alpha=0.5)
+                plt.subplot(ROWS, COLS, 2)
+                plt.plot(price_x[:-1], reward_hist, color='blue', alpha=0.5)
+
+            gain = value - price_y[0]
+            endgain[plt_i] = gain
+
+        plt.subplot(ROWS, COLS, 1)
+        plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain[1]:>4.4f}")
+        plt.subplot(ROWS, COLS, 2)
+        plt.title(f"Rewards")
+        plt.subplot(ROWS, COLS, 3)
+        plt.title("Podgląd miejsc kupna i sprzedaży")
+        # plt.subplot(ROWS, COLS, 4)
+        # plt.title("Podgląd miejsc sprzedaży")
+
+        plt.suptitle(f"Action cost: {action_cost}")
+        plt.tight_layout()
 
 
 # Creating a sample DataFrame
@@ -239,116 +374,16 @@ if __name__ == "__main__":
     # print(model.policy.optimizer)
     # print(model.learning_rate)
 
-    for session in range(100):
+    for session in range(10):
         if session != 0:
-            model.learn(total_timesteps=50_000)
+            model.learn(total_timesteps=15_000)
             model.save(model_ph)
-        # print("MODEL SAVED")
 
         for seg_i, segment in enumerate(trainsegments_ofsequences3d):
-            action_cost = 0.0001
-
-            ROWS = 4
-            COLS = 1
-            plt.subplots(ROWS, COLS, figsize=(25, 13), height_ratios=[5, 2, 1, 1], dpi=150, sharex=True)
-            timeoffset_x = segments_timestamps[seg_i][0, 0]
-
-            price_x = segments_timestamps[seg_i][:, -1] - timeoffset_x
-            price_y = trainsegments_ofsequences3d[seg_i][:, -1, price_col]
-            # plt.subplot(3, 1, 1)
-            # plt.plot(price_x, price_y, color='black', alpha=0.4)
-            # plt.subplot(3, 1, 2)
-            # plt.plot(price_x, price_y, color='black', alpha=0.4)
-            # plt.subplot(3, 1, 3)
-            endgain = {1: 0, 2: 0}
-
-            for plt_i, det, det_state in [
-                    (1, False, None), (2, True, None),
-                    (3, True, False), (4, True, True)
-            ]:
-                plt.subplot(ROWS, COLS, plt_i)
-                plt.plot(price_x, price_y, color='black', alpha=0.4)
-
-                value = price_y[0]
-                cash = price_y[0]
-                value_hist = []
-
-                state = 0
-                green_x = []
-                green_y = []
-                red_x = []
-                red_y = []
-                invalid_red_x = []
-                invalid_red_y = []
-                invalid_green_x = []
-                invalid_green_y = []
-
-                for samp_i, sample in enumerate(segment):
-                    step_price = sample[-1, price_col]
-                    # xs = sample[-1, timestamp_col] - timeoffset_x
-                    xs = segments_timestamps[seg_i][samp_i, -1] - timeoffset_x
-
-                    arr = sample.ravel()
-                    vec = np.concatenate([arr, [state]])
-
-                    ret, _some = model.predict(vec, deterministic=det)
-                    # print(f"Ret: {ret}, some: {_some}")
-                    if det_state is True:
-                        state = 1
-                    elif det_state is False:
-                        state = 0
-
-                    if ret == 0:
-                        # plt.scatter(xs, price, color='red')
-                        if state == 0:
-                            green_x.append(xs)
-                            green_y.append(step_price)
-                            value -= action_cost
-                            cash = cash - step_price - action_cost
-
-                        else:
-                            invalid_green_x.append(xs)
-                            invalid_green_y.append(step_price)
-
-                        state = 1
-                    elif ret == 2:
-                        # plt.scatter(xs, price, color='green')
-                        if state == 1:
-                            red_x.append(xs)
-                            red_y.append(step_price)
-                            cash = cash + step_price - action_cost
-                            value = cash
-                        else:
-                            invalid_red_x.append(xs)
-                            invalid_red_y.append(step_price)
-                        state = 0
-
-                    if det_state is None:
-                        value_hist.append(value)
-
-                plt.scatter(green_x, green_y, color='green', s=50)
-                plt.scatter(red_x, red_y, color='red', s=50)
-                plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
-                plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
-                if det_state is None:
-                    plt.plot(price_x, value_hist, color='blue', alpha=0.5)
-
-                gain = value - price_y[0]
-                endgain[plt_i] = gain
-
-            plt.subplot(ROWS, COLS, 1)
-            plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain[1]:>4.4f}")
-            plt.subplot(ROWS, COLS, 2)
-            plt.title(f"Deterministyczna gra, Buy: Green, Sell: Red. Endgain: {endgain[2]:>4.4f}")
-            plt.subplot(ROWS, COLS, 3)
-            plt.title("Podgląd miejsc kupna")
-            plt.subplot(ROWS, COLS, 4)
-            plt.title("Podgląd miejsc sprzedaży")
-
-            plt.suptitle(f"Action cost: {action_cost}")
-            plt.tight_layout()
+            env.reset(seg_i)
+            env.evaluate(model, segm_i=seg_i)
             plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
-            # print(f"Saved plot: {model_type}-eval_seg-{seg_i}.png")
+            print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
             plt.close()
 
-        print(f"PLOT Session Ended: {session}")
+        print(f"Session Ended: {session}")
