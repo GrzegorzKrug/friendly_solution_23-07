@@ -1,12 +1,15 @@
+from arg_parser import read_arguments_baseline
+import time
+
+
+exec_arguments = read_arguments_baseline()
+
 import os
 
 
 module_path = './gym_anytrading'
 if not os.path.exists(module_path):
     os.chdir('../')
-# ------------------------------------------------------------
-
-# import quantstats as qs
 
 from stable_baselines3 import PPO, DQN
 import matplotlib.pyplot as plt
@@ -22,7 +25,7 @@ from matplotlib.style import use
 
 
 class TradingEnvironment(gym.Env):
-    def __init__(self, segments_list, columns):
+    def __init__(self, segments_list, columns, reward_func=1):
         super(TradingEnvironment, self).__init__()
 
         self.segments_list = segments_list
@@ -46,6 +49,15 @@ class TradingEnvironment(gym.Env):
                 low=-10, high=10, shape=(OSB_SIZE,),
                 dtype=np.float32
         )
+        self.reward_action_cost = 0.001
+        self.score_action_cost = 0.0001
+
+        if reward_func == 1:
+            self.step = self._step_rew_1
+        elif reward_func == 2:
+            self.step = self._step_rew_2
+        else:
+            raise ValueError(f"Not supported reward func: {reward_func}")
 
     def reset(self, segm_i=None):
         if segm_i is None:
@@ -62,6 +74,7 @@ class TradingEnvironment(gym.Env):
         self.buy_price = 0
         self.cash = self.segments_list[self.segm_i][0, -1, self.price_col_ind]
         self.score = self.cash
+        self.start_cash = self.cash
         # self.value_hist=[]
         # self.reward_hist=[]
 
@@ -74,33 +87,35 @@ class TradingEnvironment(gym.Env):
         vec = self.segments_list[self.segm_i][self.current_step].ravel()
         return np.concatenate([vec, [self.state]])
 
-    def step(self, action):
+    def _step_rew_1(self, action):
         # print(f"Step: {self.current_step}-{action} (max: {self.max_steps})")
 
         assert self.action_space.contains(action)
         price = self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind]
         # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
         # price = time_arr[-1, self.price_col_ind]
-        reward_action_cost = 0.001
-        score_action_cost = 0.0001
-        self.idle_counter += 1
+        self.idle_counter += self.segments_list[self.segm_i][
+            self.current_step, -1, self.timediff_col_ind]
 
         if action == 0:
             if self.state == 0:
-                reward = -price - reward_action_cost
+                reward = -price - self.reward_action_cost
                 self.buy_price = price
                 self.state = 1
 
                 self.action_counter += 1
                 self.idle_counter = 0
 
-                self.score -= score_action_cost
-                self.cash = self.cash - price - score_action_cost
+                self.score -= self.score_action_cost
+                self.cash = self.cash - price - self.score_action_cost
+                was_valid = True
             else:
                 reward = -10
+                was_valid = False
 
 
         elif action == 1:
+            was_valid = True
             reward = 0
             # diff = fut_price - price
             # reward=0
@@ -118,21 +133,22 @@ class TradingEnvironment(gym.Env):
 
                 quick_sell_penalty = -3 / self.idle_counter / bars_distance_scaling
 
-                rew = gain * 3000 - reward_action_cost
+                rew = gain * 4000 - self.reward_action_cost
                 # rew = np.clip(rew, -3, 3)
                 # print(reward, quick_sell_penalty)
                 reward = rew + quick_sell_penalty
-                reward = np.clip(reward, -8, 8)
                 # print(reward, rew, quick_sell_penalty)
 
                 self.state = 0
                 self.idle_counter = 0
                 self.action_counter += 1
 
-                self.cash = self.cash + price - score_action_cost
+                self.cash = self.cash + price - self.score_action_cost
                 self.score = self.cash
+                was_valid = True
             else:
                 reward = -10
+                was_valid = False
 
         # price = self.df['price'].iloc[self.current_step]
         # reward = price * 10
@@ -144,12 +160,104 @@ class TradingEnvironment(gym.Env):
             reward = -20
 
         elif done and self.state == 1:
-            reward = -1
+            reward = -3
         # elif done:
         #     reward = 0
 
         reward -= self.idle_counter / 100
 
+        if was_valid:
+            reward = np.clip(reward, -9, 9)
+        else:
+            reward = np.clip(reward, -10, 10)
+        # if done:
+        #     return np.array([price]), reward, done, {}
+
+        # next_price = self.df['price'].iloc[self.current_step]
+        next_observation = self.observation
+
+        return next_observation, reward, done, {}
+
+    def _step_rew_2(self, action):
+        # print(f"Step: {self.current_step}-{action} (max: {self.max_steps})")
+
+        assert self.action_space.contains(action)
+        price = self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind]
+        # fut_price = self.segments_list[self.segm_i][self.current_step + 1, -1, self.price_col_ind]
+        # price = time_arr[-1, self.price_col_ind]
+        self.idle_counter += self.segments_list[self.segm_i][
+            self.current_step, -1, self.timediff_col_ind]
+
+        rising_bar = (
+                self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind] \
+                - np.max(self.segments_list[self.segm_i][self.current_step, -4:-1,
+                         self.price_col_ind])
+        )  # Pos = Rising
+        if action == 0:
+            if self.state == 0:
+                reward = -price - self.reward_action_cost - np.clip(rising_bar * 100, -0.5, 3)
+                self.buy_price = price
+                self.state = 1
+
+                self.action_counter += 1
+                self.idle_counter = 0
+
+                self.score -= self.score_action_cost
+                self.cash = self.cash - price - self.score_action_cost
+                was_valid = True
+            else:
+                reward = -10
+                was_valid = False
+
+        elif action == 1:
+            was_valid = True
+            reward = 0
+
+        else:
+            if self.state == 1:
+                gain = price - self.buy_price
+                timediff = self.segments_list[self.segm_i][self.current_step, -1, self.timediff_col_ind]
+                bars_distance_scaling = np.clip(timediff, 0.2, 2)  # (0.2 , 1.5, 2.28, 0.8,) ** 2
+
+                quick_sell_penalty = -3 / self.idle_counter / bars_distance_scaling
+
+                rew = gain * 4000 - self.reward_action_cost
+                # rew = np.clip(rew, -3, 3)
+                # print(reward, quick_sell_penalty)
+                reward = rew + quick_sell_penalty
+                # print(reward, rew, quick_sell_penalty)
+
+                self.state = 0
+                self.idle_counter = 0
+                self.action_counter += 1
+
+                self.cash = self.cash + price - self.score_action_cost
+                self.score = self.cash
+                was_valid = True
+            else:
+                reward = -10
+                was_valid = False
+
+        # price = self.df['price'].iloc[self.current_step]
+        # reward = price * 10
+
+        self.current_step += 1
+        done = self.current_step >= self.max_steps
+
+        if done and self.action_counter < 10:
+            reward = -20
+
+        elif done and self.state == 1:
+            reward = -3
+        # elif done:
+        #     reward = 0
+
+        reward -= self.idle_counter / 100
+
+        if was_valid:
+            reward = np.clip(reward, -9, 9)
+        else:
+            reward = np.clip(reward, -10, 10)
         # if done:
         #     return np.array([price]), reward, done, {}
 
@@ -159,7 +267,7 @@ class TradingEnvironment(gym.Env):
         return next_observation, reward, done, {}
 
     def evaluate(self, model, new_figure=True, segm_i=None):
-        action_cost = 0.0001
+        action_cost = self.score_action_cost
 
         ROWS = 3
         COLS = 1
@@ -265,7 +373,8 @@ class TradingEnvironment(gym.Env):
                 plt.subplot(ROWS, COLS, 2)
                 plt.plot(price_x[:-1], reward_hist, color='blue', alpha=0.5)
 
-            gain = value - price_y[0]
+            # gain = value - price_y[0]
+            gain = self.score - self.start_cash
             endgain[plt_i] = gain
 
         plt.subplot(ROWS, COLS, 1)
@@ -291,7 +400,35 @@ if __name__ == "__main__":
     file_path = path_data_folder + files[0]
     time_size = 80
 
-    path_baseline_models = os.path.join(path_models, "baseline", "")
+    "ARG PARSING"
+    "=Flags"
+    evalonly = exec_arguments.evalonly
+    noeval = exec_arguments.noeval
+    skip_first_plot = exec_arguments.skip
+
+    model_type = exec_arguments.modeltype
+    if model_type is None:
+        model_type = "ppo".lower()
+
+    model_num = exec_arguments.modelnum
+    if model_num is None:
+        model_num = 1
+
+    reward_fnum = exec_arguments.reward
+    if reward_fnum is None:
+        reward_fnum = 1
+
+    run_live = exec_arguments.live
+    path_input = exec_arguments.pathinput
+    path_output = exec_arguments.pathoutput
+
+    "=============="
+    model_path = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
+
+    path_baseline_models = os.path.join(path_models, "baseline", model_path, "")
+    print(f"Starting model: {model_path}\n" * 5)
+    time.sleep(4)
+
     os.makedirs(path_baseline_models, exist_ok=True)
 
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
@@ -320,7 +457,7 @@ if __name__ == "__main__":
             trainsegments_ofsequences3d
     ]
 
-    env = TradingEnvironment(trainsegments_ofsequences3d, columns)
+    env = TradingEnvironment(trainsegments_ofsequences3d, columns, reward_func=reward_fnum)
     env.reset()
 
     use("ggplot")
@@ -329,7 +466,9 @@ if __name__ == "__main__":
     lr = 1e-5
     ent_coef = 1e-3
     arch_nodes = 2000
-    batch_size = 500
+    batch_size = 3000
+
+    model_ph = path_baseline_models + "model.bs3"
 
     if model_type == "dqn":
         model = DQN(
@@ -338,30 +477,31 @@ if __name__ == "__main__":
                 policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
                 batch_size=300,
         )
-        model_ph = path_baseline_models + "model1-dqn.bs3"
 
     elif model_type == 'ppo':
-        model = PPO(
-                'MlpPolicy', env, verbose=1,
-                learning_rate=lr,
-                ent_coef=ent_coef,
-                # batch_size=300,
-                batch_size=batch_size,
-                policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                clip_range=0.1,
-        )
-        model_ph = path_baseline_models + "model2-ppo.bs3"
+        if os.path.isfile(model_ph):
+            print(f"Loading PPO: {model_ph}")
+            model = PPO.load(
+                    model_ph, env=env,
+                    learning_rate=lr,
+                    ent_coef=ent_coef,
+                    batch_size=batch_size,
+                    clip_range=0.3,
+            )
+        else:
+            skip_first_plot = True
+            print("Creating PPO")
+            model = PPO(
+                    'MlpPolicy', env, verbose=1,
+                    learning_rate=lr,
+                    ent_coef=ent_coef,
+                    # batch_size=300,
+                    batch_size=batch_size,
+                    policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                    clip_range=0.3,
+            )
     else:
         raise ValueError(f"Wrong model type: {model_type}")
-
-    if os.path.isfile(model_ph):
-        model = model.load(
-                model_ph, env=env,
-                learning_rate=lr,
-                ent_coef=ent_coef,
-                batch_size=batch_size,
-                clip_range=0.1,
-        )
 
     print("POLICY:")
     for name, param in model.policy.named_parameters():
@@ -374,9 +514,13 @@ if __name__ == "__main__":
     #
     # print(model.policy.optimizer)
     # print(model.learning_rate)
+    if evalonly:
+        games = 1
+    else:
+        games = 20
 
-    for session in range(10):
-        if session != 0:
+    for session in range(games):
+        if (session != 0 or skip_first_plot) and not evalonly:
             model.learn(total_timesteps=15_000)
             model.save(model_ph)
 
