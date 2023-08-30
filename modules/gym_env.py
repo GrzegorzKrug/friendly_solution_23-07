@@ -116,7 +116,12 @@ class TradingEnvironment(gym.Env):
 
         elif action == 1:
             was_valid = True
-            reward = 0
+            rising_bar = (
+                    self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind] \
+                    - np.max(self.segments_list[self.segm_i][self.current_step, -5:-1,
+                             self.price_col_ind])
+            )  # Pos = Rising
+            reward = np.clip(-rising_bar * 1000, -1, 1)
             # diff = fut_price - price
             # reward=0
             # if self.state == 1:
@@ -164,7 +169,7 @@ class TradingEnvironment(gym.Env):
         # elif done:
         #     reward = 0
 
-        reward -= self.idle_counter / 100
+        reward -= self.idle_counter / 500
 
         if was_valid:
             reward = np.clip(reward, -9, 9)
@@ -190,7 +195,7 @@ class TradingEnvironment(gym.Env):
 
         rising_bar = (
                 self.segments_list[self.segm_i][self.current_step, -1, self.price_col_ind] \
-                - np.max(self.segments_list[self.segm_i][self.current_step, -4:-1,
+                - np.max(self.segments_list[self.segm_i][self.current_step, -5:-1,
                          self.price_col_ind])
         )  # Pos = Rising
         if action == 0:
@@ -211,7 +216,7 @@ class TradingEnvironment(gym.Env):
 
         elif action == 1:
             was_valid = True
-            reward = 0
+            reward = np.clip(-rising_bar * 100, -2, 2)
 
         else:
             if self.state == 1:
@@ -252,7 +257,7 @@ class TradingEnvironment(gym.Env):
         # elif done:
         #     reward = 0
 
-        reward -= self.idle_counter / 100
+        reward -= self.idle_counter / 500
 
         if was_valid:
             reward = np.clip(reward, -9, 9)
@@ -284,7 +289,7 @@ class TradingEnvironment(gym.Env):
         # plt.subplot(3, 1, 2)
         # plt.plot(price_x, price_y, color='black', alpha=0.4)
         # plt.subplot(3, 1, 3)
-        endgain = {1: 0, 2: 0}
+        endgain_dict = {1: 0, 2: 0}
 
         for plt_i, det, det_state in [
                 (1, False, None),  # (2, True, None),
@@ -375,10 +380,10 @@ class TradingEnvironment(gym.Env):
 
             # gain = value - price_y[0]
             gain = self.score - self.start_cash
-            endgain[plt_i] = gain
+            endgain_dict[plt_i] = gain
 
         plt.subplot(ROWS, COLS, 1)
-        plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain[1]:>4.4f}")
+        plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain_dict[1]:>4.4f}")
         plt.subplot(ROWS, COLS, 2)
         plt.title(f"Rewards")
         plt.subplot(ROWS, COLS, 3)
@@ -388,6 +393,8 @@ class TradingEnvironment(gym.Env):
 
         plt.suptitle(f"Action cost: {action_cost}")
         plt.tight_layout()
+
+        return endgain_dict
 
 
 # Creating a sample DataFrame
@@ -430,6 +437,11 @@ if __name__ == "__main__":
     time.sleep(4)
 
     os.makedirs(path_baseline_models, exist_ok=True)
+
+    gain_fp = path_baseline_models + "gains.csv"
+    if not os.path.isfile(gain_fp):
+        with open(gain_fp, "wt") as fh:
+            fh.write("session,segment_i,segment_gain\n")
 
     trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
             file_path, get_n_bars=time_size,
@@ -524,11 +536,16 @@ if __name__ == "__main__":
             model.learn(total_timesteps=15_000)
             model.save(model_ph)
 
-        for seg_i, segment in enumerate(trainsegments_ofsequences3d):
-            env.reset(seg_i)
-            env.evaluate(model, segm_i=seg_i)
-            plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
-            print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
-            plt.close()
+        with open(gain_fp, "at") as fh:
+            for seg_i, segment in enumerate(trainsegments_ofsequences3d):
+                env.reset(seg_i)
+                endgain_dict = env.evaluate(model, segm_i=seg_i)
+                endgain = endgain_dict[1]
+                # print("WRITING:", endgain)
+                fh.write(f"{session},{seg_i},{endgain:>4.5f}\n")
+
+                plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
+                print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
+                plt.close()
 
         print(f"Session Ended: {session}")
