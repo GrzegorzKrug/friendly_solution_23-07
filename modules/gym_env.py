@@ -543,8 +543,8 @@ if __name__ == "__main__":
                 include_timestamp=True,
                 normalize_timediff=True,
                 minsamples_insegment=300,
-                clip_df_left=8000,
-                clip_df_right=5000,
+                # clip_df_left=8000,
+                clip_df_right=25000,
                 # first_sample_date="2023-6-29",  # only for on_balance_volume
         )
 
