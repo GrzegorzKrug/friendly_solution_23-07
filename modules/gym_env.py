@@ -1,10 +1,12 @@
 from arg_parser import read_arguments_baseline
 import time
+import glob
 
 
 exec_arguments = read_arguments_baseline()
 
 import os
+import pandas as pd
 
 
 module_path = './gym_anytrading'
@@ -18,10 +20,12 @@ import gym
 from gym import spaces
 import numpy as np
 
-from common_settings import path_data_folder, path_models
+from common_settings import path_data_folder, path_models, path_models_baseline
 from preprocess_data import preprocess_pipe_bars
 
 from matplotlib.style import use
+from matplotlib.colors import CSS4_COLORS
+import random
 
 
 class TradingEnvironment(gym.Env):
@@ -397,6 +401,50 @@ class TradingEnvironment(gym.Env):
         return endgain_dict
 
 
+def plot_gain(folder_path, colors=None):
+    file_path = os.path.join(folder_path, "gains.csv")
+    model_name = os.path.basename(folder_path)
+    print(f"Model: {model_name}")
+    if not os.path.isfile(file_path):
+        return "No file to plot"
+
+    print(f"Plotting: {folder_path}")
+    df = pd.read_csv(file_path)
+    # print(df)
+    mask1 = df["session"] == 0
+    mask2 = df["segment_i"] == 0
+    mask = mask1 & mask2
+    args = np.argwhere(mask).ravel()
+    args = np.concatenate([args, [len(df)]])
+    # print(f"Args: {args}")
+    # color = np.random.random()
+    # print(COLORS[:5])
+
+    offset_x = 0
+    plt.figure(figsize=(12, 7), dpi=150)
+    for start, stop in zip(args, args[1:]):
+        print(f"Ploting: {start}:{stop} ({len(df)})")
+        d_x = df.loc[start:stop - 1, "session"].to_numpy()
+        seg_i = df.loc[start:stop - 1, "segment_i"].to_numpy()
+        # print(d_x)
+        d_x += offset_x
+        # print(d_x)
+        d_y = df.loc[start:stop - 1, "segment_gain"]
+
+        if colors is not None:
+            colors = colors[seg_i]
+
+        plt.scatter(d_x, d_y, c=colors)
+
+        offset_x = d_x[-1] + 1
+
+    plt.title(f"{model_name}")
+    plt.ylabel("Gain")
+    plt.xlabel("Sesja")
+    plt.tight_layout()
+    plt.savefig(os.path.join(folder_path, "..", f"{model_name}.png"))
+
+
 # Creating a sample DataFrame
 # data = {'price': [10.0, 12.0, 15.0, 18.0, 20.0, 25.0, 22.0, 19.0, 16.0, 14.0]}
 # df = pd.DataFrame(data)
@@ -412,6 +460,7 @@ if __name__ == "__main__":
     evalonly = exec_arguments.evalonly
     noeval = exec_arguments.noeval
     skip_first_plot = exec_arguments.skip
+    plot_gains_only = exec_arguments.plot
 
     model_type = exec_arguments.modeltype
     if model_type is None:
@@ -430,122 +479,158 @@ if __name__ == "__main__":
     path_output = exec_arguments.pathoutput
 
     "=============="
-    model_path = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
 
-    path_baseline_models = os.path.join(path_models, "baseline", model_path, "")
-    print(f"Starting model: {model_path}\n" * 5)
-    time.sleep(4)
+    if plot_gains_only:
+        COLORS = list(CSS4_COLORS.keys())
+        # random.shuffle(COLORS)
+        COLORS = np.array(COLORS)
+        # print(f"COLORS: {len(COLORS)}")
+        # print(COLORS)
+        for i, k in enumerate(COLORS):
+            print(i, k)
+        COLORS = COLORS[
+            [
+                    44,  # BLue
+                    105,  # Orange
+                    21,  # Dark blue
+                    54,  # Green
+                    82,  # Lime
+                    22,  # Dark cyan
+                    115,  # Pink
+                    118,  # Purple
+                    138,  # Teal
+                    32,  # Dark red
+            ],
+        ]
 
-    os.makedirs(path_baseline_models, exist_ok=True)
+        # COLORS = COLORS[1::12]
+        # print(f"COLORS: {len(COLORS)}")
+        # print(COLORS)
 
-    gain_fp = path_baseline_models + "gains.csv"
-    if not os.path.isfile(gain_fp):
-        with open(gain_fp, "wt") as fh:
-            fh.write("session,segment_i,segment_gain\n")
+        use("ggplot")
+        folders = glob.glob(f"{path_models_baseline}*")
+        # print(f"found folders: {folders}")
+        folders = [fold for fold in folders if os.path.isdir(fold)]
+        # print(f"found folders: {folders}")
+        for folder_ph in folders:
+            plot_gain(folder_ph, colors=COLORS)
+    else:
+        model_path = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
 
-    trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
-            file_path, get_n_bars=time_size,
-            add_timediff_feature=True,
-            include_timestamp=True,
-            normalize_timediff=True,
-            minsamples_insegment=300,
-            # clip_df_left=8000,
-            clip_df_right=35000,
-            # first_sample_date="2023-6-29",  # only for on_balance_volume
-    )
+        path_baseline_model = os.path.join(path_models, "baseline", model_path, "")
+        print(f"Starting model: {model_path}\n" * 5)
+        time.sleep(4)
 
-    # print(columns[0])
-    price_col = np.argwhere(columns[0] == 'last').ravel()[0]
-    timestamp_col = np.argwhere(columns[0] == 'timestamp_s').ravel()[0]
+        os.makedirs(path_baseline_model, exist_ok=True)
 
-    if price_col > timestamp_col:
-        "Compensate later index"
-        price_col -= 1
+        gain_fp = path_baseline_model + "gains.csv"
+        if not os.path.isfile(gain_fp):
+            with open(gain_fp, "wt") as fh:
+                fh.write("session,segment_i,segment_gain\n")
 
-    segments_timestamps = [segm[:, :, timestamp_col] for segm in trainsegments_ofsequences3d]
-    columns = np.delete(columns[0], timestamp_col)
-    trainsegments_ofsequences3d = [
-            np.delete(segm, timestamp_col, axis=2) for segm in
-            trainsegments_ofsequences3d
-    ]
-
-    env = TradingEnvironment(trainsegments_ofsequences3d, columns, reward_func=reward_fnum)
-    env.reset()
-
-    use("ggplot")
-
-    model_type = "ppo"
-    lr = 1e-5
-    ent_coef = 1e-3
-    arch_nodes = 2000
-    batch_size = 3000
-
-    model_ph = path_baseline_models + "model.bs3"
-
-    if model_type == "dqn":
-        model = DQN(
-                'MlpPolicy', env, verbose=1,
-                learning_rate=1e-5,
-                policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                batch_size=300,
+        trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
+                file_path, get_n_bars=time_size,
+                add_timediff_feature=True,
+                include_timestamp=True,
+                normalize_timediff=True,
+                minsamples_insegment=300,
+                clip_df_left=8000,
+                clip_df_right=5000,
+                # first_sample_date="2023-6-29",  # only for on_balance_volume
         )
 
-    elif model_type == 'ppo':
-        if os.path.isfile(model_ph):
-            print(f"Loading PPO: {model_ph}")
-            model = PPO.load(
-                    model_ph, env=env,
-                    learning_rate=lr,
-                    ent_coef=ent_coef,
-                    batch_size=batch_size,
-                    clip_range=0.3,
-            )
-        else:
-            skip_first_plot = True
-            print("Creating PPO")
-            model = PPO(
+        # print(columns[0])
+        price_col = np.argwhere(columns[0] == 'last').ravel()[0]
+        timestamp_col = np.argwhere(columns[0] == 'timestamp_s').ravel()[0]
+
+        if price_col > timestamp_col:
+            "Compensate later index"
+            price_col -= 1
+
+        segments_timestamps = [segm[:, :, timestamp_col] for segm in trainsegments_ofsequences3d]
+        columns = np.delete(columns[0], timestamp_col)
+        trainsegments_ofsequences3d = [
+                np.delete(segm, timestamp_col, axis=2) for segm in
+                trainsegments_ofsequences3d
+        ]
+
+        env = TradingEnvironment(trainsegments_ofsequences3d, columns, reward_func=reward_fnum)
+        env.reset()
+
+        use("ggplot")
+
+        model_type = "ppo"
+        lr = 1e-5
+        ent_coef = 1e-4
+        arch_nodes = 500
+        batch_size = 3000
+
+        model_ph = path_baseline_model + "model.bs3"
+
+        if model_type == "dqn":
+            model = DQN(
                     'MlpPolicy', env, verbose=1,
-                    learning_rate=lr,
-                    ent_coef=ent_coef,
-                    # batch_size=300,
-                    batch_size=batch_size,
+                    learning_rate=1e-5,
                     policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                    clip_range=0.3,
+                    batch_size=300,
             )
-    else:
-        raise ValueError(f"Wrong model type: {model_type}")
 
-    print("POLICY:")
-    for name, param in model.policy.named_parameters():
-        print(name, param.shape)
+        elif model_type == 'ppo':
+            if os.path.isfile(model_ph):
+                print(f"Loading PPO: {model_ph}")
+                model = PPO.load(
+                        model_ph, env=env,
+                        learning_rate=lr,
+                        ent_coef=ent_coef,
+                        batch_size=batch_size,
+                        clip_range=0.3,
+                )
+            else:
+                skip_first_plot = True
+                print("Creating PPO")
+                model = PPO(
+                        'MlpPolicy', env, verbose=1,
+                        learning_rate=lr,
+                        ent_coef=ent_coef,
+                        # batch_size=300,
+                        batch_size=batch_size,
+                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                        clip_range=0.3,
+                )
+        else:
+            raise ValueError(f"Wrong model type: {model_type}")
 
-    print(model.learning_rate)
-    print(model.policy.optimizer)
-    # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
-    # # model.set_parameters(dict(lr=0.1))
-    #
-    # print(model.policy.optimizer)
-    # print(model.learning_rate)
-    if evalonly:
-        games = 1
-    else:
-        games = 20
+        print("POLICY:")
+        for name, param in model.policy.named_parameters():
+            print(name, param.shape)
 
-    for session in range(games):
-        if (session != 0 or skip_first_plot) and not evalonly:
-            model.learn(total_timesteps=15_000)
-            model.save(model_ph)
+        print(model.learning_rate)
+        print(model.policy.optimizer)
+        # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
+        # # model.set_parameters(dict(lr=0.1))
+        #
+        # print(model.policy.optimizer)
+        # print(model.learning_rate)
+        if evalonly:
+            games = 1
+        else:
+            games = 10
 
-        with open(gain_fp, "at") as fh:
-            for seg_i, segment in enumerate(trainsegments_ofsequences3d):
-                env.reset(seg_i)
-                endgain_dict = env.evaluate(model, segm_i=seg_i)
-                endgain = endgain_dict[1]
-                # print("WRITING:", endgain)
-                fh.write(f"{session},{seg_i},{endgain:>4.5f}\n")
+        for session in range(games):
+            if (session != 0 or skip_first_plot) and not evalonly:
+                model.learn(total_timesteps=15_000)
+                model.save(model_ph)
 
-                plt.savefig(path_baseline_models + f"{model_type}-seg-{seg_i}-({session}).png")
-                print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
-                plt.close()
+            with open(gain_fp, "at") as fh:
+                for seg_i, segment in enumerate(trainsegments_ofsequences3d):
+                    env.reset(seg_i)
+                    endgain_dict = env.evaluate(model, segm_i=seg_i)
+                    endgain = endgain_dict[1]
+                    # print("WRITING:", endgain)
+                    fh.write(f"{session},{seg_i},{endgain:>4.5f}\n")
 
-        print(f"Session Ended: {session}")
+                    plt.savefig(path_baseline_model + f"{model_type}-seg-{seg_i}-({session}).png")
+                    print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
+                    plt.close()
+
+            print(f"Session Ended: {session}")
