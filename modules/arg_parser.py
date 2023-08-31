@@ -11,7 +11,9 @@ def read_arguments_baseline():
     parser.add_argument('-eo', '--evalonly', action='store_true', help='Eval without train')
     parser.add_argument('-ne', '--noeval', action='store_true', help="Don't plot eval when training")
     parser.add_argument('-s', '--skip', action='store_true', help='Skip first plot')
-    parser.add_argument('-p', '--plot', action='store_true', help='Plot gains')
+    parser.add_argument('-p', '--plot', action='store_true',
+                        help='Start script to plot all gains from training')
+    parser.add_argument('-np', '--noplot', action='store_true', help='Do not plot during training.')
     # parser.add_argument('-a', '--all', action='store_true', help='Skip first plot')
 
     # parser.add_argument('-', '--live', action='store_true', help='Start live')

@@ -275,12 +275,12 @@ class TradingEnvironment(gym.Env):
 
         return next_observation, reward, done, {}
 
-    def evaluate(self, model, new_figure=True, segm_i=None):
+    def evaluate(self, model, new_figure=True, segm_i=None, allow_plot=True):
         action_cost = self.score_action_cost
 
         ROWS = 3
         COLS = 1
-        if new_figure:
+        if new_figure and allow_plot:
             plt.subplots(ROWS, COLS, figsize=(25, 13), height_ratios=[5, 2, 3], dpi=150, sharex=True)
         timeoffset_x = segments_timestamps[self.segm_i][0, 0]
         # timeoffset_x = self.segments_list[self.segm_i][0, 0, self.timediff_col_ind]
@@ -299,8 +299,9 @@ class TradingEnvironment(gym.Env):
                 (1, False, None),  # (2, True, None),
                 (3, True, False), (3, True, True)
         ]:
-            plt.subplot(ROWS, COLS, plt_i)
-            plt.plot(price_x, price_y, color='black', alpha=0.4)
+            if allow_plot:
+                plt.subplot(ROWS, COLS, plt_i)
+                plt.plot(price_x, price_y, color='black', alpha=0.4)
 
             # value = price_y[0]
             # cash = price_y[0]
@@ -373,30 +374,32 @@ class TradingEnvironment(gym.Env):
                 if det_state is None:
                     value_hist.append(value)
 
-            plt.scatter(green_x, green_y, color='green', s=50)
-            plt.scatter(red_x, red_y, color='red', s=50)
-            plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
-            plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
-            if plt_i == 1:
-                plt.plot(price_x[:-1], value_hist, color='blue', alpha=0.5)
-                plt.subplot(ROWS, COLS, 2)
-                plt.plot(price_x[:-1], reward_hist, color='blue', alpha=0.5)
+            if allow_plot:
+                plt.scatter(green_x, green_y, color='green', s=50)
+                plt.scatter(red_x, red_y, color='red', s=50)
+                plt.scatter(invalid_red_x, invalid_red_y, marker="x", color=(0.5, 0, 0), s=25)
+                plt.scatter(invalid_green_x, invalid_green_y, marker="x", color=(0, 0.4, 0), s=25)
+                if plt_i == 1:
+                    plt.plot(price_x[:-1], value_hist, color='blue', alpha=0.5)
+                    plt.subplot(ROWS, COLS, 2)
+                    plt.plot(price_x[:-1], reward_hist, color='blue', alpha=0.5)
 
             # gain = value - price_y[0]
             gain = self.score - self.start_cash
             endgain_dict[plt_i] = gain
 
-        plt.subplot(ROWS, COLS, 1)
-        plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain_dict[1]:>4.4f}")
-        plt.subplot(ROWS, COLS, 2)
-        plt.title(f"Rewards")
-        plt.subplot(ROWS, COLS, 3)
-        plt.title("Podgląd miejsc kupna i sprzedaży")
-        # plt.subplot(ROWS, COLS, 4)
-        # plt.title("Podgląd miejsc sprzedaży")
+        if allow_plot:
+            plt.subplot(ROWS, COLS, 1)
+            plt.title(f"Gra, Buy: Green, Sell: Red. Endgain: {endgain_dict[1]:>4.4f}")
+            plt.subplot(ROWS, COLS, 2)
+            plt.title(f"Rewards")
+            plt.subplot(ROWS, COLS, 3)
+            plt.title("Podgląd miejsc kupna i sprzedaży")
+            # plt.subplot(ROWS, COLS, 4)
+            # plt.title("Podgląd miejsc sprzedaży")
 
-        plt.suptitle(f"Action cost: {action_cost}")
-        plt.tight_layout()
+            plt.suptitle(f"Action cost: {action_cost}")
+            plt.tight_layout()
 
         return endgain_dict
 
@@ -456,11 +459,14 @@ if __name__ == "__main__":
     time_size = 80
 
     "ARG PARSING"
-    "=Flags"
+    "=Flags="
+    print("Argumenty wywołania:", exec_arguments)
     evalonly = exec_arguments.evalonly
     noeval = exec_arguments.noeval
     skip_first_plot = exec_arguments.skip
     plot_gains_only = exec_arguments.plot
+    allow_plot = not exec_arguments.noplot
+    # print(f"Allow plot: {allow_plot}")
 
     model_type = exec_arguments.modeltype
     if model_type is None:
@@ -638,19 +644,20 @@ if __name__ == "__main__":
 
         for session in range(games):
             if (session != 0 or skip_first_plot) and not evalonly:
-                model.learn(total_timesteps=50_000)
+                model.learn(total_timesteps=25_000)
                 model.save(model_ph)
 
             with open(gain_fp, "at") as fh:
                 for seg_i, segment in enumerate(trainsegments_ofsequences3d):
                     env.reset(seg_i)
-                    endgain_dict = env.evaluate(model, segm_i=seg_i)
+                    endgain_dict = env.evaluate(model, segm_i=seg_i, allow_plot=allow_plot)
                     endgain = endgain_dict[1]
                     # print("WRITING:", endgain)
                     fh.write(f"{session},{seg_i},{endgain:>4.5f}\n")
 
-                    plt.savefig(path_baseline_model + f"{model_type}-seg-{seg_i}-({session}).png")
-                    print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
-                    plt.close()
+                    if allow_plot:
+                        plt.savefig(path_baseline_model + f"{model_type}-seg-{seg_i}-({session}).png")
+                        print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
+                        plt.close()
 
             print(f"Session Ended: {session}")
