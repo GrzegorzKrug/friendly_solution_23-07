@@ -577,12 +577,23 @@ if __name__ == "__main__":
         model_ph = path_baseline_model + "model.bs3"
 
         if model_type == "dqn":
-            model = DQN(
-                    'MlpPolicy', env, verbose=1,
-                    learning_rate=1e-5,
-                    policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                    batch_size=300,
-            )
+            if os.path.isfile(model_ph):
+                print("Creating DQN")
+                model = DQN.load(
+                        'MlpPolicy', env, verbose=1,
+                        learning_rate=lr,
+                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                        batch_size=batch_size,
+                )
+            else:
+                print("Loading DQN")
+                skip_first_plot = True
+                model = DQN(
+                        'MlpPolicy', env, verbose=1,
+                        learning_rate=lr,
+                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                        batch_size=batch_size,
+                )
 
         elif model_type == 'ppo':
             if os.path.isfile(model_ph):
@@ -592,7 +603,7 @@ if __name__ == "__main__":
                         learning_rate=lr,
                         ent_coef=ent_coef,
                         batch_size=batch_size,
-                        clip_range=0.3,
+                        clip_range=0.05,
                 )
             else:
                 skip_first_plot = True
@@ -604,7 +615,7 @@ if __name__ == "__main__":
                         # batch_size=300,
                         batch_size=batch_size,
                         policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                        clip_range=0.3,
+                        clip_range=0.05,
                 )
         else:
             raise ValueError(f"Wrong model type: {model_type}")
