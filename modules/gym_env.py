@@ -404,7 +404,7 @@ class TradingEnvironment(gym.Env):
         return endgain_dict
 
 
-def plot_gain(folder_path, colors=None):
+def plot_gain(folder_path, color_pallete=None):
     file_path = os.path.join(folder_path, "gains.csv")
     model_name = os.path.basename(folder_path)
     print(f"Model: {model_name}")
@@ -428,18 +428,18 @@ def plot_gain(folder_path, colors=None):
     for start, stop in zip(args, args[1:]):
         print(f"Ploting: {start}:{stop} ({len(df)})")
         d_x = df.loc[start:stop - 1, "session"].to_numpy()
-        seg_i = df.loc[start:stop - 1, "segment_i"].to_numpy()
-        # print(d_x)
-        d_x += offset_x
-        # print(d_x)
         d_y = df.loc[start:stop - 1, "segment_gain"]
+        seg_i = df.loc[start:stop - 1, "segment_i"].to_numpy()
 
-        if colors is not None:
-            colors = colors[seg_i]
+        d_x += offset_x
+        offset_x = d_x[-1] + 1
+
+        if color_pallete is not None:
+            colors = color_pallete[seg_i]
+        else:
+            colors = None
 
         plt.scatter(d_x, d_y, c=colors)
-
-        offset_x = d_x[-1] + 1
 
     plt.title(f"{model_name}")
     plt.ylabel("Gain")
@@ -492,8 +492,9 @@ if __name__ == "__main__":
         COLORS = np.array(COLORS)
         # print(f"COLORS: {len(COLORS)}")
         # print(COLORS)
-        for i, k in enumerate(COLORS):
-            print(i, k)
+        # for i, k in enumerate(COLORS):
+        #     print(i, k)
+
         COLORS = COLORS[
             [
                     44,  # BLue
@@ -519,8 +520,8 @@ if __name__ == "__main__":
         ]
 
         # COLORS = COLORS[1::12]
+        print(COLORS)
         print(f"Got Colors size: {len(COLORS)}")
-        # print(COLORS)
 
         use("ggplot")
         folders = glob.glob(f"{path_models_baseline}*")
@@ -528,7 +529,7 @@ if __name__ == "__main__":
         folders = [fold for fold in folders if os.path.isdir(fold)]
         # print(f"found folders: {folders}")
         for folder_ph in folders:
-            plot_gain(folder_ph, colors=COLORS)
+            plot_gain(folder_ph, color_pallete=COLORS.copy())
     else:
         model_path = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
 
