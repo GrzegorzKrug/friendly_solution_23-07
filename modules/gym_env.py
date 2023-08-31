@@ -569,8 +569,8 @@ if __name__ == "__main__":
         use("ggplot")
 
         model_type = "ppo"
-        lr = 1e-5
-        ent_coef = 1e-4
+        lr = 5e-6
+        ent_coef = 1e-3
         arch_nodes = 500
         batch_size = 3000
 
@@ -623,11 +623,11 @@ if __name__ == "__main__":
         if evalonly:
             games = 1
         else:
-            games = 10
+            games = 100
 
         for session in range(games):
             if (session != 0 or skip_first_plot) and not evalonly:
-                model.learn(total_timesteps=15_000)
+                model.learn(total_timesteps=50_000)
                 model.save(model_ph)
 
             with open(gain_fp, "at") as fh:
