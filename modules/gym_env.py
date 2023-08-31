@@ -421,7 +421,7 @@ def plot_gain(folder_path, colors=None):
     # print(COLORS[:5])
 
     offset_x = 0
-    plt.figure(figsize=(12, 7), dpi=150)
+    plt.figure(figsize=(20, 10), dpi=150)
     for start, stop in zip(args, args[1:]):
         print(f"Ploting: {start}:{stop} ({len(df)})")
         d_x = df.loc[start:stop - 1, "session"].to_numpy()
