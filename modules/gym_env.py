@@ -571,7 +571,7 @@ if __name__ == "__main__":
         model_type = "ppo"
         lr = 5e-6
         ent_coef = 1e-3
-        arch_nodes = 500
+        arch_nodes = 2000
         batch_size = 3000
 
         model_ph = path_baseline_model + "model.bs3"
