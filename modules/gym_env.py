@@ -5,8 +5,9 @@ import glob
 
 exec_arguments = read_arguments_baseline()
 
-import os
 import pandas as pd
+import os
+import sys
 
 
 module_path = './gym_anytrading'
@@ -448,6 +449,223 @@ def plot_gain(folder_path, color_pallete=None):
     plt.savefig(os.path.join(folder_path, "..", f"{model_name}.png"))
 
 
+def start_stream_predict(
+        baseline_model,
+        input_filepath,
+
+        time_feats=16,
+        time_window=10,
+        float_feats=1,
+        out_size=3,
+
+        arch_num=101,
+        iteration=0,
+        nodes=1000,
+        reward_fnum=6,
+        lr="1e-05",
+        loss='mae',
+        batch=500,
+        discount='0.9',
+
+        split_interval_s=1800,
+        interval_s=10,
+        output_filepath=None,
+):
+    # print(f"TIME FTS: {time_feats}")
+    # print(f"TIME Window: {time_window}")
+
+    state = 0
+    last_segment_end = 0
+    last_size = os.path.getsize(input_filepath)
+    loaded_df_bars = pd.read_csv(input_filepath)
+    curr_df_size = len(loaded_df_bars)
+    if output_filepath is None:
+        output_filepath = os.path.join(
+                os.path.dirname(input_filepath),
+                f"predicting_{arch_num:>03}_{lr}_{loss}.txt"
+        )
+
+    was_file = os.path.isfile(output_filepath)
+
+    print("READY FOR NEW SAMPLES")
+    # print(f"Model: {naming_ob.path}")
+    print(f"Output file: {output_filepath}")
+
+    with open(output_filepath, "at", buffering=1) as fp:
+        if not was_file:
+            input_file_columns = loaded_df_bars.columns
+            ct = ",".join(cl for cl in input_file_columns)
+            fp.write(f"{ct}\n")
+
+        while True:
+            time.sleep(0.1)
+            size = os.path.getsize(input_filepath)
+            if last_size == size:
+                continue
+
+            last_size = size
+            prev_df_size = curr_df_size
+
+            loaded_df_bars = pd.read_csv(input_filepath)
+            # print(f"Shape: {loadead_df.shape}")
+            curr_df_size = len(loaded_df_bars)
+            missing_predictions = curr_df_size - prev_df_size
+
+            # last_bar_ind = len(loadead_df) - 1
+            print(f"File has changed by {missing_predictions} entries")
+            loaded_segments, columns = preprocess_pipe_bars(
+                    input_filepath,
+                    get_n_bars=time_window,
+                    clip_df_left=-1 * (missing_predictions + time_window * 3 + 5),
+                    include_timestamp=False,
+                    normalize_timediff=True,
+
+                    workers=1,
+                    # include_t
+
+            )
+            # print(f"Clip L: {-1 * (missing_predictions + time_window + 1)}")
+
+            if len(loaded_segments) < 1:
+                print(
+                        f"{curr_df_size} RESET: Skipping update. No segments")
+                # row = out_df.iloc[i]
+                # print(loaded_segments)
+                ser = loaded_df_bars.iloc[-1, :]
+                fp.write(','.join(map(str, ser)))
+                fp.write(",-1")
+                fp.write("\n")
+                state = 0
+                continue
+
+            # print(f"Segments: {loaded_segments}")
+            loaded_segment = loaded_segments[-1]
+            del loaded_segments
+
+            if len(loaded_segment) < 1:
+                print(
+                        f"{curr_df_size} RESET: Skipping update. Too few bars: {loaded_segment.shape}")
+                # row = out_df.iloc[i]
+                ser = loaded_df_bars.iloc[-1, :]
+                fp.write(','.join(map(str, ser)))
+                fp.write(",-1")
+                fp.write("\n")
+                state = 0
+                continue
+
+            # print(f"Missing predictions: {missing_predictions}")
+
+            for i in range(missing_predictions):
+                clipr = (-1 * missing_predictions + i + 1)
+                if clipr != 0:
+                    sequences_3d = loaded_segment[:clipr].copy()  # BARS ONLY
+                    cur_raw_df = loaded_df_bars[:clipr]
+                else:
+                    sequences_3d = loaded_segment.copy()
+                    cur_raw_df = loaded_df_bars
+                # print(f"Seq3d shape: {sequences_3d.shape}")
+
+                # print(f"Predicting from: {last_segment_end}:{last_bar_ind + i + 2}")
+                t0 = time.time()
+
+                # "CLEAN"
+                # # dataframe = preprocess(dataframe, first_sample_date=None) # UNIFORM
+                # if len(dataframe) <= 1:
+                #     print(
+                #             f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i}. Df too short: {dataframe.shape}")
+                #     # row = out_df.iloc[i]
+                #     ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                #     fp.write(','.join(map(str, ser)))
+                #     fp.write(",-1")
+                #     fp.write("\n")
+                #     state = 0
+                #
+                #     if was_ok:
+                #         last_segment_end = last_bar_ind + 1 + i
+                #         was_ok = False
+                #     continue
+
+                # segments, columns = generate_interpolated_data(
+                #         dataframe=dataframe, include_time=False,
+                #         interval_s=interval_s, split_interval_s=split_interval_s
+                # )
+                # print(f"Splitted into {len(segments)} segments")
+
+                # list_ofsequences = [to_sequences_forward(arr, 10, [1])[0] for arr in segments]
+                # current_sequence, _ = to_sequences_forward(segments[-1], 10, [1])
+
+                # print(f"current sequence: {current_sequence.shape}")
+
+                "UNIFORM"
+                # if len(current_sequence) <= 0:
+                #     print(f"{last_bar_ind + i + 1} RESET: Skipping iteration: {i} too short sequence")
+                #     ser = loadead_df.iloc[last_bar_ind + 1 + i]
+                #     # ser['act'] = -1
+                #     fp.write(','.join(map(str, ser)))
+                #     fp.write(",-1")
+                #     fp.write("\n")
+                #     state = 0
+                #     if was_ok:
+                #         last_segment_end = last_bar_ind + 1 + i
+                #         was_ok = False
+                #     continue
+
+                "BARS"
+                if len(sequences_3d) <= 0:
+                    print(f"{prev_df_size + i + 1} RESET: Skipping iteration: {i} too few bars")
+                    ser = cur_raw_df.iloc[-1]
+                    # ser['act'] = -1
+                    fp.write(','.join(map(str, ser)))
+                    fp.write(",-1")
+                    fp.write("\n")
+                    state = 0
+                    continue
+
+                # print(f"Predicting from sequences: {current_sequence.shape}")
+
+                pred_state = np.array(state).reshape(1, 1, 1)
+                # pred_arr = current_sequence[-1, :, :][np.newaxis, :, :]
+                # pred_arr = sequences_3d[-1, :, :].reshape(1, time_window, time_feats)
+                pred_arr = sequences_3d[-1, :, :]
+                # print(f"pred Arr shape: {pred_arr.shape}")
+
+                # print(f"Pred state: {pred_state}, {pred_state.shape}")
+                # print(f"Predict shapes: {pred_arr.shape}, {pred_state.shape}")
+                # predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                # predicted = model_keras.predict([pred_arr, pred_state], verbose=False)
+                # print(f"Predict: {pred_arr}")
+                # print(f"Pred state: {pred_state}")
+
+                obs = np.concatenate([pred_arr.ravel(), pred_state.ravel()])
+                # print(f"obs: {obs.shape}")
+
+                act, _ = baseline_model.predict(obs)
+                # act = np.argmax(predicted, axis=1)[0]
+                print(f"Predicted: {act}")
+                # print(f"Act: {act} from state: {state}")
+
+                ser = cur_raw_df.iloc[-1]
+                fp.write(','.join(map(str, ser)))
+                fp.write(f",{act}")
+                fp.write("\n")
+
+                prev_state = state
+                "Post state eval"
+                if act == 0:
+                    state = 1
+
+                elif act == 2:
+                    state = 0
+
+                loop_dur = time.time() - t0
+                print(prev_df_size + i + 1, i,
+                      f"Loop duration: {loop_dur:>5.2}s",
+                      f"Act: {act}, End state:{state}, was state: {prev_state}")
+                # was_ok = True
+
+            print("========")
+
+
 # Creating a sample DataFrame
 # data = {'price': [10.0, 12.0, 15.0, 18.0, 20.0, 25.0, 22.0, 19.0, 16.0, 14.0]}
 # df = pd.DataFrame(data)
@@ -470,7 +688,9 @@ if __name__ == "__main__":
 
     model_type = exec_arguments.modeltype
     if model_type is None:
-        model_type = "ppo".lower()
+        model_type = "ppo"
+    else:
+        model_type = model_type.lower()
 
     model_num = exec_arguments.modelnum
     if model_num is None:
@@ -485,6 +705,8 @@ if __name__ == "__main__":
     path_output = exec_arguments.pathoutput
 
     "=============="
+    model_textparams = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
+    path_modelfolder_baseline = os.path.join(path_models, "baseline", model_textparams, "")
 
     if plot_gains_only:
         COLORS = list(CSS4_COLORS.keys())
@@ -530,114 +752,131 @@ if __name__ == "__main__":
         # print(f"found folders: {folders}")
         for folder_ph in folders:
             plot_gain(folder_ph, color_pallete=COLORS.copy())
+        sys.exit(0)
+
+    lclip = None
+
+    if run_live:
+        print(f"Running model {model_textparams} live.")
+        # time.sleep(4)
+        rclip = 500
+
     else:
-        model_path = f"mt{model_type}-mn{model_num}-r{reward_fnum}"
+        rclip = 5000
+        print(f"Starting model: {model_textparams}\n" * 5)
 
-        path_baseline_model = os.path.join(path_models, "baseline", model_path, "")
-        print(f"Starting model: {model_path}\n" * 5)
-        time.sleep(4)
+        # time.sleep(4)
+    os.makedirs(path_modelfolder_baseline, exist_ok=True)
 
-        os.makedirs(path_baseline_model, exist_ok=True)
+    gain_fp = path_modelfolder_baseline + "gains.csv"
+    if not os.path.isfile(gain_fp):
+        with open(gain_fp, "wt") as fh:
+            fh.write("session,segment_i,segment_gain\n")
 
-        gain_fp = path_baseline_model + "gains.csv"
-        if not os.path.isfile(gain_fp):
-            with open(gain_fp, "wt") as fh:
-                fh.write("session,segment_i,segment_gain\n")
+    trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
+            file_path, get_n_bars=time_size,
+            add_timediff_feature=True,
+            include_timestamp=True,
+            normalize_timediff=True,
+            minsamples_insegment=300,
+            clip_df_left=lclip,
+            clip_df_right=rclip,
+            # first_sample_date="2023-6-29",  # only for on_balance_volume
+    )
 
-        trainsegments_ofsequences3d, columns = preprocess_pipe_bars(
-                file_path, get_n_bars=time_size,
-                add_timediff_feature=True,
-                include_timestamp=True,
-                normalize_timediff=True,
-                minsamples_insegment=300,
-                # clip_df_left=8000,
-                clip_df_right=35000,
-                # first_sample_date="2023-6-29",  # only for on_balance_volume
-        )
+    # print(columns[0])
+    price_col = np.argwhere(columns[0] == 'last').ravel()[0]
+    timestamp_col = np.argwhere(columns[0] == 'timestamp_s').ravel()[0]
 
-        # print(columns[0])
-        price_col = np.argwhere(columns[0] == 'last').ravel()[0]
-        timestamp_col = np.argwhere(columns[0] == 'timestamp_s').ravel()[0]
+    if price_col > timestamp_col:
+        "Compensate later index"
+        price_col -= 1
 
-        if price_col > timestamp_col:
-            "Compensate later index"
-            price_col -= 1
+    segments_timestamps = [segm[:, :, timestamp_col] for segm in trainsegments_ofsequences3d]
+    columns = np.delete(columns[0], timestamp_col)
+    trainsegments_ofsequences3d = [
+            np.delete(segm, timestamp_col, axis=2) for segm in
+            trainsegments_ofsequences3d
+    ]
 
-        segments_timestamps = [segm[:, :, timestamp_col] for segm in trainsegments_ofsequences3d]
-        columns = np.delete(columns[0], timestamp_col)
-        trainsegments_ofsequences3d = [
-                np.delete(segm, timestamp_col, axis=2) for segm in
-                trainsegments_ofsequences3d
-        ]
+    env = TradingEnvironment(trainsegments_ofsequences3d, columns, reward_func=reward_fnum)
+    env.reset()
 
-        env = TradingEnvironment(trainsegments_ofsequences3d, columns, reward_func=reward_fnum)
-        env.reset()
+    use("ggplot")
 
-        use("ggplot")
+    lr = 5e-6
+    ent_coef = 1e-3
+    arch_nodes = 2000
+    batch_size = 3000
 
-        model_type = "ppo"
-        lr = 5e-6
-        ent_coef = 1e-3
-        arch_nodes = 2000
-        batch_size = 3000
+    model_ph = path_modelfolder_baseline + "model.bs3"
 
-        model_ph = path_baseline_model + "model.bs3"
-
-        if model_type == "dqn":
-            if os.path.isfile(model_ph):
-                print("Creating DQN")
-                model = DQN.load(
-                        'MlpPolicy', env, verbose=1,
-                        learning_rate=lr,
-                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                        batch_size=batch_size,
-                )
-            else:
-                print("Loading DQN")
-                skip_first_plot = True
-                model = DQN(
-                        'MlpPolicy', env, verbose=1,
-                        learning_rate=lr,
-                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                        batch_size=batch_size,
-                )
-
-        elif model_type == 'ppo':
-            if os.path.isfile(model_ph):
-                print(f"Loading PPO: {model_ph}")
-                model = PPO.load(
-                        model_ph, env=env,
-                        learning_rate=lr,
-                        ent_coef=ent_coef,
-                        batch_size=batch_size,
-                        clip_range=0.05,
-                )
-            else:
-                skip_first_plot = True
-                print("Creating PPO")
-                model = PPO(
-                        'MlpPolicy', env, verbose=1,
-                        learning_rate=lr,
-                        ent_coef=ent_coef,
-                        # batch_size=300,
-                        batch_size=batch_size,
-                        policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
-                        clip_range=0.05,
-                )
+    if model_type == "dqn":
+        if os.path.isfile(model_ph):
+            print("Creating DQN")
+            model = DQN.load(
+                    model_ph,
+                    env, verbose=1,
+                    learning_rate=lr,
+                    policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                    batch_size=batch_size,
+            )
         else:
-            raise ValueError(f"Wrong model type: {model_type}")
+            print("Loading DQN")
+            skip_first_plot = True
+            model = DQN(
+                    'MlpPolicy', env, verbose=1,
+                    learning_rate=lr,
+                    policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                    batch_size=batch_size,
+            )
 
-        print("POLICY:")
-        for name, param in model.policy.named_parameters():
-            print(name, param.shape)
+    elif model_type == 'ppo':
+        if os.path.isfile(model_ph):
+            print(f"Loading PPO: {model_ph}")
+            model = PPO.load(
+                    model_ph, env=env,
+                    learning_rate=lr,
+                    ent_coef=ent_coef,
+                    batch_size=batch_size,
+                    clip_range=0.05,
+            )
+        else:
+            skip_first_plot = True
+            print("Creating PPO")
+            model = PPO(
+                    'MlpPolicy', env, verbose=1,
+                    learning_rate=lr,
+                    ent_coef=ent_coef,
+                    # batch_size=300,
+                    batch_size=batch_size,
+                    policy_kwargs=dict(net_arch=[arch_nodes, arch_nodes]),
+                    clip_range=0.05,
+            )
+    else:
+        raise ValueError(f"Wrong model type: {model_type}")
 
-        print(model.learning_rate)
-        print(model.policy.optimizer)
-        # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
-        # # model.set_parameters(dict(lr=0.1))
-        #
-        # print(model.policy.optimizer)
-        # print(model.learning_rate)
+    print("POLICY:")
+    for name, param in model.policy.named_parameters():
+        print(name, param.shape)
+
+    print(model.learning_rate)
+    print(model.policy.optimizer)
+
+    # model.policy.optimizer.param_groups[0]['lr'] = 1e-3
+    # # model.set_parameters(dict(lr=0.1))
+    #
+    # print(model.policy.optimizer)
+    # print(model.learning_rate)
+    if run_live:
+        pass
+        print("SUCCES LOADING")
+        start_stream_predict(
+                model,
+                input_filepath=path_input, output_filepath=path_output,
+                time_window=time_size,
+        )
+    else:
         if evalonly:
             games = 1
         else:
@@ -657,7 +896,8 @@ if __name__ == "__main__":
                     fh.write(f"{session},{seg_i},{endgain:>4.5f}\n")
 
                     if allow_plot:
-                        plt.savefig(path_baseline_model + f"{model_type}-seg-{seg_i}-({session}).png")
+                        plt.savefig(
+                                path_modelfolder_baseline + f"{model_type}-seg-{seg_i}-({session}).png")
                         print(f"Saved plot({session}): {model_type}-eval_seg-{seg_i}.png")
                         plt.close()
 
