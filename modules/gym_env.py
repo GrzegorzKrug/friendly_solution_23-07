@@ -121,7 +121,7 @@ class TradingEnvironment(gym.Env):
                     - np.max(self.segments_list[self.segm_i][self.current_step, -5:-1,
                              self.price_col_ind])
             )  # Pos = Rising
-            reward = np.clip(-rising_bar * 1000, -1, 1)
+            reward = np.clip(-rising_bar * 500, -1, 1)
             # diff = fut_price - price
             # reward=0
             # if self.state == 1:
@@ -200,7 +200,7 @@ class TradingEnvironment(gym.Env):
         )  # Pos = Rising
         if action == 0:
             if self.state == 0:
-                reward = -price - self.reward_action_cost  # - np.clip(rising_bar * 100, -0.5, 3)
+                reward = -price - self.reward_action_cost - np.clip(rising_bar * 10, -0.5, 0.5)
                 self.buy_price = price
                 self.state = 1
 
@@ -216,7 +216,7 @@ class TradingEnvironment(gym.Env):
 
         elif action == 1:
             was_valid = True
-            reward = np.clip(-rising_bar * 100, -2, 2)
+            reward = np.clip(-rising_bar * 1000, -2, 2)
 
         else:
             if self.state == 1:
