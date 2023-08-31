@@ -12,24 +12,24 @@ Do not plot during training. -mt MODELTYPE, --modeltype MODELTYPE Typ: PPO,DQN, 
 reward function. Default: 1 -l, --live Start live. Add -pi & -po arguments. -pi PATHINPUT, --pathinput
 PATHINPUT Ścieżka wejściowa do pliku Live -po PATHOUTPUT, --pathoutput PATHOUTPUT Ścieżka wyjściowa do Live
 
-# Wybór modelu
 
-python gym_env.py -mt ppo python gym_env.py -mt dqn
+# HELP
+`python gym_env.py -h`
+
+# Wybór modelu
+`python gym_env.py -mt ppo`
+`python gym_env.py -mt dqn`
 
 # Wybór mdelu i reward
-
-python gym_env.py -mt dqn -r 2
+`python gym_env.py -mt dqn -r 2`
 
 # Rysowanie gainów
-
-python gym_env.py -p
+`python gym_env.py -p`
 
 # Startowanie Live
-
 ## Windows
 `python gym_env.py -l -pi P:\LocalPrograms\stock\friendly_solution_23-07\dane\test_updating.txt -po P:\LocalPrograms\stock\friendly_solution_23-07\dane\baseline_live.txt`
 `python gym_env.py -l -pi P:\LocalPrograms\stock\friendly_solution_23-07\dane\test_updating.txt -po P:\LocalPrograms\stock\friendly_solution_23-07\dane\baseline_live.txt`
-
 
 ## Linux
 `python gym_env.py -l -pi <path> -po /home/rafal/baseline_live_predict.txt`
