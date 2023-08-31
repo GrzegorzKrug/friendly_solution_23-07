@@ -169,7 +169,7 @@ class TradingEnvironment(gym.Env):
         # elif done:
         #     reward = 0
 
-        reward -= self.idle_counter / 500
+        reward -= self.idle_counter / 300
 
         if was_valid:
             reward = np.clip(reward, -9, 9)
@@ -200,7 +200,7 @@ class TradingEnvironment(gym.Env):
         )  # Pos = Rising
         if action == 0:
             if self.state == 0:
-                reward = -price - self.reward_action_cost - np.clip(rising_bar * 100, -0.5, 3)
+                reward = -price - self.reward_action_cost  # - np.clip(rising_bar * 100, -0.5, 3)
                 self.buy_price = price
                 self.state = 1
 
@@ -257,7 +257,7 @@ class TradingEnvironment(gym.Env):
         # elif done:
         #     reward = 0
 
-        reward -= self.idle_counter / 500
+        reward -= self.idle_counter / 300
 
         if was_valid:
             reward = np.clip(reward, -9, 9)
