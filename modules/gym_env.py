@@ -500,11 +500,20 @@ if __name__ == "__main__":
                     118,  # Purple
                     138,  # Teal
                     32,  # Dark red
+                    10,  # Blue violet
+                    131,  # Slate Blue
+                    19,  # Crimson
+                    16,  # Coral
+                    60,  # indigo
+                    103,  # olive
+                    138,  # Teal
+
+
             ],
         ]
 
         # COLORS = COLORS[1::12]
-        # print(f"COLORS: {len(COLORS)}")
+        print(f"Got Colors size: {len(COLORS)}")
         # print(COLORS)
 
         use("ggplot")
